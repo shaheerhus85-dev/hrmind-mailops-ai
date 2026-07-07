@@ -1,0 +1,1 @@
+"""HRMind MailOps backend package."""
