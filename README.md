@@ -272,16 +272,35 @@ Keep local secrets and runtime data out of git:
 
 ## Screenshots
 
-Screenshots will be added here as the portfolio presentation is finalized.
+See the full case study: [HRMind MailOps AI case study](docs/case-study.md).
 
-Suggested captures:
+### Dashboard overview
 
-- Dashboard overview
-- Inbox triage
-- Candidate review
-- Interview kits
-- Reply drafts
-- Workspace Settings
+![Dashboard overview](docs/screenshots/dashboard.png)
+
+### Inbox Triage
+
+![Inbox Triage](docs/screenshots/inbox-triage.png)
+
+### Candidate Review
+
+![Candidate Review](docs/screenshots/candidate-review.png)
+
+### Interview Kits
+
+![Interview Kits](docs/screenshots/interview-kits.png)
+
+### Reply Drafts
+
+![Reply Drafts](docs/screenshots/reply-drafts.png)
+
+### Workspace Settings
+
+![Workspace Settings](docs/screenshots/settings.png)
+
+### Backend health/API
+
+![Backend health API](docs/screenshots/backend-health.png)
 
 ## Author
 
