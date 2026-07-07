@@ -9,13 +9,7 @@ import type { ElementType, ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
 import gsap from "gsap";
-import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut
-} from "firebase/auth";
-import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
+import { backend, PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE } from "@/lib/backend";
 import { LogoLockup } from "@/components/brand";
 
 type View = "Overview" | "Inbox Triage" | "Candidate Review" | "Interview Kits" | "Reply Drafts" | "Settings";
@@ -45,7 +39,6 @@ const regenerateDefaults: RegenerateSettings = {
   useSources: true,
   extraInstruction: ""
 };
-const DEMO_STORAGE_KEY = "hrmind:demoWorkspace:v1";
 
 const candidates: Candidate[] = [
   { id:1, name:"Ayesha Khan", role:"Senior React Engineer", source:"CV Applications", score:94, status:"shortlist suggestion", reviewStatus:"pending", location:"Lahore, PK", experience:"7 years", summary:"Strong frontend profile with TypeScript depth and product-dashboard ownership. Recruiter should verify compensation expectations.", skills:["React","TypeScript","Dashboards"], gaps:["GraphQL"], risk:"Compensation expectations need recruiter review." },
@@ -130,24 +123,8 @@ function createDemoWorkspaceState():WorkspaceState {
   return {...base,dashboardMetrics:computeDashboardMetrics(base)};
 }
 
-function createPrivateWorkspaceState(uid:string):WorkspaceState {
-  const base:WorkspaceState={version:1,inboxThreads:[],candidates:[],replyDrafts:[],interviewKits:[],dashboardMetrics:{} as DashboardMetrics,workspaceSettings:{workspaceName:"Private Recruiting Workspace",workspaceId:`private_${uid}`,demo:false,gmailConnected:false,ragConnected:false},reviewActions:[]};
-  return {...base,dashboardMetrics:computeDashboardMetrics(base)};
-}
-
 function refreshWorkspace(state:WorkspaceState):WorkspaceState {
   return {...state,dashboardMetrics:computeDashboardMetrics(state)};
-}
-
-function readWorkspace(key:string,fallback:WorkspaceState):WorkspaceState {
-  try {
-    const parsed=JSON.parse(window.localStorage.getItem(key)??"null") as Partial<WorkspaceState>|null;
-    if(!parsed||parsed.version!==1) return fallback;
-    const merged={...fallback,...parsed,workspaceSettings:{...fallback.workspaceSettings,...parsed.workspaceSettings}} as WorkspaceState;
-    return refreshWorkspace(merged);
-  } catch {
-    return fallback;
-  }
 }
 
 function getFirstName(fullName:string) {
@@ -273,10 +250,8 @@ export default function Dashboard() {
   const appRef = useRef<HTMLElement>(null);
   const toastTimer = useRef<number | null>(null);
   const [workspaceMode,setWorkspaceMode] = useState<WorkspaceMode>("loading");
-  const [workspaceEmail,setWorkspaceEmail] = useState("");
-  const [workspaceUid,setWorkspaceUid] = useState("");
+  const workspaceEmail="";
   const [workspace,setWorkspace] = useState<WorkspaceState>(()=>createDemoWorkspaceState());
-  const [workspaceStorageKey,setWorkspaceStorageKey] = useState("");
   const [workspaceReady,setWorkspaceReady] = useState(false);
   const [view,setView] = useState<View>("Overview");
   const [candidateId,setCandidateId] = useState(1);
@@ -395,57 +370,55 @@ export default function Dashboard() {
     return ()=>context.revert();
   },[view]);
 
-  useEffect(()=>{
-    if(window.sessionStorage.getItem("hrmind-demo-workspace")==="true"){setWorkspaceMode("demo");return}
-    if(!firebaseConfigured){setWorkspaceMode("gate");return}
-    let initial=true;
-    return onAuthStateChanged(getFirebaseAuth(),user=>{
-      if(user){setWorkspaceEmail(user.email??"Recruiter");setWorkspaceUid(user.uid);setWorkspaceMode("private")}
-      else if(initial){setWorkspaceMode("gate")}
-      initial=false;
-    });
-  },[]);
+  const openDemoWorkspace=async()=>{
+    setWorkspaceReady(false);
+    const fallback=createDemoWorkspaceState();
+    try{
+      const stored=await backend.getWorkspace<WorkspaceState>(fallback);
+      const base=stored?.version===1
+        ? {...fallback,...stored,workspaceSettings:{...fallback.workspaceSettings,...stored.workspaceSettings}}
+        : fallback;
+      const [inboxThreads,workspaceCandidates,replyDrafts]=await Promise.all([
+        backend.listEmailThreads(base),
+        backend.listCandidates(base),
+        backend.listDrafts(base)
+      ]);
+      setWorkspace(refreshWorkspace({...base,inboxThreads,candidates:workspaceCandidates,replyDrafts}));
+    }catch{
+      setWorkspace(fallback);
+    }
+    window.sessionStorage.setItem("hrmind-demo-workspace","true");
+    setCandidateId(1);
+    setEmailId(1);
+    setDraftIndex(0);
+    setWorkspaceMode("demo");
+    setWorkspaceReady(true);
+  };
+
+  useEffect(()=>{void openDemoWorkspace()},[]);
 
   useEffect(()=>{
-    if(workspaceMode==="demo"){
-      const fallback=createDemoWorkspaceState();
-      setWorkspace(readWorkspace(DEMO_STORAGE_KEY,fallback));
-      setWorkspaceStorageKey(DEMO_STORAGE_KEY);
-      setWorkspaceReady(true);
-      return;
-    }
-    if(workspaceMode==="private"&&workspaceUid){
-      const key=`hrmind:privateWorkspace:${workspaceUid}:v1`;
-      const fallback=createPrivateWorkspaceState(workspaceUid);
-      setWorkspace(readWorkspace(key,fallback));
-      setWorkspaceStorageKey(key);
-      setWorkspaceReady(true);
-      setCandidateId(1);
-      setEmailId(1);
-      setDraftIndex(null);
-    }
-  },[workspaceMode,workspaceUid]);
+    if(workspaceMode!=="demo"||!workspaceReady) return;
+    void backend.saveWorkspace(workspace);
+  },[workspace,workspaceMode,workspaceReady]);
 
   useEffect(()=>{
-    if(!workspaceReady||!workspaceStorageKey) return;
-    window.localStorage.setItem(workspaceStorageKey,JSON.stringify(workspace));
-  },[workspace,workspaceReady,workspaceStorageKey]);
+    if(workspaceMode!=="demo"||!workspaceReady||!selectedDraft) return;
+    void backend.saveDraft(selectedDraft);
+  },[selectedDraft,workspaceMode,workspaceReady]);
 
   useEffect(()=>()=>{if(toastTimer.current) window.clearTimeout(toastTimer.current)},[]);
 
-  const exitWorkspace = async () => {
-    if(workspaceMode==="private"&&firebaseConfigured){await signOut(getFirebaseAuth())}
+  const exitWorkspace = () => {
     window.sessionStorage.removeItem("hrmind-demo-workspace");
-    setWorkspaceEmail("");
-    setWorkspaceUid("");
     setWorkspaceReady(false);
-    setWorkspaceStorageKey("");
     setWorkspaceMode("gate");
     setView("Overview");
   };
 
   if(workspaceMode==="loading") return <div className="auth-loading"><LogoLockup compact/><span>Preparing HRMind MailOps AI</span></div>;
-  if(workspaceMode==="gate") return <AuthGate onDemo={()=>{window.sessionStorage.setItem("hrmind-demo-workspace","true");setWorkspaceMode("demo")}} onAuthenticated={(email,uid)=>{window.sessionStorage.removeItem("hrmind-demo-workspace");setWorkspaceEmail(email);setWorkspaceUid(uid);setWorkspaceMode("private")}}/>;
+  if(workspaceMode==="gate") return <AuthGate onDemo={()=>{void openDemoWorkspace()}}/>;
+  if(!workspaceReady) return <div className="auth-loading"><LogoLockup compact/><span>Preparing HRMind MailOps AI</span></div>;
 
   return <main className="app-viewport" ref={appRef}><div className="app-frame"><div className="app-inner">
     <LeftRail view={view} onView={go}/>
@@ -460,7 +433,7 @@ export default function Dashboard() {
           {view==="Candidate Review" && <CandidateView items={visibleCandidates} selected={candidate} onSelect={chooseCandidate} onInterview={openInterviewKit} onDraft={routeDraftForCandidate} onReviewed={markCandidateReviewed}/>}
           {view==="Interview Kits" && <InterviewView items={visibleCandidates} selected={candidate} kit={workspace.interviewKits.find(item=>item.candidateId===candidate.id)} copied={kitCopied} onSelect={chooseCandidate} onCopy={copyKit} onReviewed={markKitReviewed}/>}
           {view==="Reply Drafts" && <DraftsView drafts={workspace.replyDrafts} candidates={workspace.candidates} selected={draftIndex} draft={selectedDraft} variant={draftVariant} body={selectedDraftBody} copied={copied} reviewed={selectedDraft?.reviewStatus==="reviewed"} generationSettings={selectedDraftGeneration} onSelect={chooseDraft} onVariant={setDraftVariant} onBody={editDraftBody} onCopy={copy} onReviewed={markDraftReviewed} onKeep={()=>showToast("Kept as draft")} onRegenerate={regenerateDraftOptions}/>}
-          {view==="Settings" && <SettingsView workspaceMode={workspaceMode} workspaceEmail={workspaceEmail} settings={workspace.workspaceSettings} onExit={exitWorkspace}/>}
+          {view==="Settings" && <SettingsView workspaceMode={workspaceMode} settings={workspace.workspaceSettings} onExit={exitWorkspace}/>}
         </div>
       </section>
       {view!=="Overview"&&view!=="Settings"&&(hasContextData?<ContextIntelligence view={view} candidate={candidate} email={email} draft={selectedDraft} variant={draftVariant} reviewed={view==="Inbox Triage"?email.status==="reviewed":view==="Candidate Review"?candidate.reviewStatus==="reviewed":view==="Interview Kits"?workspace.interviewKits.find(item=>item.candidateId===candidate.id)?.status==="reviewed":selectedDraft?.reviewStatus==="reviewed"} kitCopied={kitCopied} draftCopied={copied} draftBody={selectedDraftBody} generationSettings={selectedDraftGeneration} onAnalyze={analyzeCandidate} onInterview={openInterviewKit} onDraft={routeDraftForCandidate} onCopyKit={copyKit} onCopyDraft={copy} onReviewed={view==="Inbox Triage"?markEmailReviewed:view==="Candidate Review"?markCandidateReviewed:view==="Interview Kits"?markKitReviewed:markDraftReviewed} onKeep={view==="Inbox Triage"?keepInQueue:()=>showToast("Kept as draft")}/>:<ContextEmpty/>)}
@@ -469,25 +442,15 @@ export default function Dashboard() {
   </div>{toast&&<Toast message={toast}/>}</div></main>;
 }
 
-function AuthGate({onDemo,onAuthenticated}:{onDemo:()=>void;onAuthenticated:(email:string,uid:string)=>void}) {
+function AuthGate({onDemo}:{onDemo:()=>void}) {
   const [screen,setScreen] = useState<"welcome"|"login"|"signup">("welcome");
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const [error,setError] = useState("");
-  const [busy,setBusy] = useState(false);
 
-  const submit = async (event:React.FormEvent<HTMLFormElement>) => {
+  const submit = (event:React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError("");
-    if(!firebaseConfigured){setError("Firebase is not configured yet. Add the public environment values or continue with the demo workspace.");return}
-    setBusy(true);
-    try{
-      const credential=screen==="signup" ? await createUserWithEmailAndPassword(getFirebaseAuth(),email,password) : await signInWithEmailAndPassword(getFirebaseAuth(),email,password);
-      onAuthenticated(email,credential.user.uid);
-    }catch(reason){
-      const message=reason instanceof Error?reason.message:"Authentication could not be completed.";
-      setError(message.includes("invalid-credential")?"The email or password is incorrect.":message.replace("Firebase: ","").replace(/\(auth\/.*\)\.?/,"").trim());
-    }finally{setBusy(false)}
+    setError(PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE);
   };
 
   return <main className="auth-shell">
@@ -507,17 +470,17 @@ function AuthGate({onDemo,onAuthenticated}:{onDemo:()=>void;onAuthenticated:(ema
           <h2>Welcome to MailOps AI</h2>
           <p>Choose how you want to open the recruiter operations workspace.</p>
           <div className="auth-actions"><button className="auth-primary" onClick={()=>setScreen("login")}><LogIn/> Log in</button><button className="auth-secondary" onClick={()=>setScreen("signup")}>Create account</button><button className="auth-demo" onClick={onDemo}><Sparkles/> Continue with demo workspace</button></div>
-          <div className="auth-safety"><ShieldCheck/><span><strong>Workspace trust notes</strong>Demo uses local sample data · Gmail is not connected · private workspaces require email verification · Gmail readonly permission is a separate later step.</span></div>
+          <div className="auth-safety"><ShieldCheck/><span><strong>Workspace trust notes</strong>{PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE} Gmail is not connected and no automatic email sending is enabled.</span></div>
         </>:<form onSubmit={submit}>
           <button type="button" className="auth-back" onClick={()=>{setScreen("welcome");setError("")}}>← Back</button>
           <span className="auth-icon"><LockKeyhole/></span>
           <h2>{screen==="login"?"Log in to HRMind":"Create your workspace"}</h2>
-          <p>{screen==="login"?"Continue to your private recruiter workspace.":"Set up an email/password workspace. Gmail remains disconnected."}</p>
+          <p>{PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE}</p>
           <label>Email address<input type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="recruiter@company.com" required/></label>
           <label>Password<input type="password" value={password} onChange={event=>setPassword(event.target.value)} placeholder="At least 6 characters" minLength={6} required/></label>
           {error&&<div className="auth-error"><AlertTriangle/>{error}</div>}
-          {!firebaseConfigured&&<div className="auth-config"><Info/>Firebase public environment variables are not configured in this deployment.</div>}
-          <button className="auth-primary" disabled={busy}>{busy?"Please wait…":screen==="login"?"Log in":"Create account"}</button>
+          <div className="auth-config"><Info/>{PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE}</div>
+          <button className="auth-primary">{screen==="login"?"Log in":"Create account"}</button>
           <p className="auth-switch">{screen==="login"?"Need an account?":"Already registered?"}<button type="button" onClick={()=>{setScreen(screen==="login"?"signup":"login");setError("")}}>{screen==="login"?"Sign up":"Log in"}</button></p>
         </form>}
       </div>
@@ -810,13 +773,15 @@ type LocalSettings = {
   ragFiles: StagedRagFile[];
 };
 
-const SETTINGS_STORAGE_KEY = "hrmind:settings:v1";
 const createDefaultLocalSettings = ():LocalSettings => ({
   version: 1,
-  guardrails: { reviewRequired:true, draftOnly:true, noAutoSend:true },
+  guardrails: {reviewRequired:true,draftOnly:true,noAutoSend:true},
   demoMode: true,
   ragFiles: []
 });
+const parseStagedRagFiles = (value:unknown):StagedRagFile[] => Array.isArray(value)
+  ? value.filter((file):file is StagedRagFile=>Boolean(file&&typeof file.id==="string"&&typeof file.name==="string"&&typeof file.type==="string"&&typeof file.size==="number"&&typeof file.addedAt==="string"))
+  : [];
 
 function formatFileSize(bytes:number){
   if(bytes<1024) return `${bytes} B`;
@@ -824,7 +789,7 @@ function formatFileSize(bytes:number){
   return `${(bytes/(1024*1024)).toFixed(1)} MB`;
 }
 
-function SettingsView({workspaceMode,workspaceEmail,settings,onExit}:{workspaceMode:WorkspaceMode;workspaceEmail:string;settings:WorkspaceSettingsState;onExit:()=>void}) {
+function SettingsView({workspaceMode,settings,onExit}:{workspaceMode:WorkspaceMode;settings:WorkspaceSettingsState;onExit:()=>void}) {
   type SettingsRow = {
     id: string;
     Icon: ElementType;
@@ -845,32 +810,31 @@ function SettingsView({workspaceMode,workspaceEmail,settings,onExit}:{workspaceM
   const [uploadMessage,setUploadMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skipNextPersist = useRef(false);
+  const isDemoWorkspace=workspaceMode==="demo";
+  const demoModeActive=isDemoWorkspace&&localSettings.demoMode;
 
   useEffect(()=>{
-    try{
-      const raw=window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-      if(raw){
-        const parsed=JSON.parse(raw) as Partial<LocalSettings>;
-        const guardrails=parsed.guardrails as Partial<Record<GuardrailKey,boolean>>|undefined;
-        const ragFiles=Array.isArray(parsed.ragFiles)
-          ? parsed.ragFiles.filter((file):file is StagedRagFile=>Boolean(file&&typeof file.id==="string"&&typeof file.name==="string"&&typeof file.type==="string"&&typeof file.size==="number"&&typeof file.addedAt==="string"))
-          : [];
-        setLocalSettings({
-          version:1,
-          guardrails:{
-            reviewRequired:typeof guardrails?.reviewRequired==="boolean"?guardrails.reviewRequired:true,
-            draftOnly:typeof guardrails?.draftOnly==="boolean"?guardrails.draftOnly:true,
-            noAutoSend:typeof guardrails?.noAutoSend==="boolean"?guardrails.noAutoSend:true
-          },
-          demoMode:typeof parsed.demoMode==="boolean"?parsed.demoMode:true,
-          ragFiles
-        });
-      }
-    }catch{
-      window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
-    }finally{
-      setSettingsReady(true);
-    }
+    let active=true;
+    setSettingsReady(false);
+    backend.getSettings<LocalSettings>(createDefaultLocalSettings()).then(parsed=>{
+      if(!active) return;
+      const guardrails=parsed.guardrails as Partial<Record<GuardrailKey,boolean>>|undefined;
+      setLocalSettings({
+        version:1,
+        guardrails:{
+          reviewRequired:typeof guardrails?.reviewRequired==="boolean"?guardrails.reviewRequired:true,
+          draftOnly:typeof guardrails?.draftOnly==="boolean"?guardrails.draftOnly:true,
+          noAutoSend:typeof guardrails?.noAutoSend==="boolean"?guardrails.noAutoSend:true
+        },
+        demoMode:typeof parsed.demoMode==="boolean"?parsed.demoMode:true,
+        ragFiles:parseStagedRagFiles(parsed.ragFiles)
+      });
+    }).catch(()=>{
+      if(active) setLocalSettings(createDefaultLocalSettings());
+    }).finally(()=>{
+      if(active) setSettingsReady(true);
+    });
+    return ()=>{active=false};
   },[]);
 
   useEffect(()=>{
@@ -879,7 +843,8 @@ function SettingsView({workspaceMode,workspaceEmail,settings,onExit}:{workspaceM
       skipNextPersist.current=false;
       return;
     }
-    window.localStorage.setItem(SETTINGS_STORAGE_KEY,JSON.stringify(localSettings));
+    void backend.saveSettings(localSettings);
+    void backend.stageRagSourceMetadata(localSettings.ragFiles);
   },[localSettings,settingsReady]);
 
   useEffect(()=>{
@@ -920,19 +885,19 @@ function SettingsView({workspaceMode,workspaceEmail,settings,onExit}:{workspaceM
   };
   const resetSettings=()=>{
     skipNextPersist.current=true;
-    window.localStorage.removeItem(SETTINGS_STORAGE_KEY);
+    void backend.clearDemoSettings();
     setLocalSettings(createDefaultLocalSettings());
-    setUploadMessage("Demo settings restored.");
+    setUploadMessage("Demo settings restored. Local RAG metadata was cleared.");
   };
 
   const rows:SettingsRow[]=[
     {id:"workspace",Icon:Building2,title:"Workspace",body:"Core workspace identity and local demo membership.",details:[["Workspace name",settings.workspaceName],["Workspace ID",settings.workspaceId],["Created",settings.demo?"Demo only":"Private workspace"],["Members","1"]],state:settings.demo?"Demo":"Private",tone:"blue",iconClass:"workspace"},
-    {id:"authentication",Icon:LockKeyhole,title:"Authentication",body:"Private workspaces require verified recruiter access.",details:[["Email",workspaceMode==="private"?workspaceEmail:"Not signed in"],["Verification","Required for private workspace"],["Auth method","Email + Password"],["2FA status","Not enabled"]],state:workspaceMode==="private"?"Verified":"Setup needed",tone:workspaceMode==="private"?"green":"amber",iconClass:"auth",action:{label:workspaceMode==="private"?"Sign out":"Exit demo",onClick:onExit}},
-    {id:"demo-data",Icon:Inbox,title:"Demo Data",body:"Currently using local sample data for demonstration. No real Gmail connection or candidate data.",details:[["Demo mode",localSettings.demoMode?"Active":"Off"]],state:localSettings.demoMode?"Active":"Off",tone:localSettings.demoMode?"green":"amber",iconClass:"data"},
+    {id:"authentication",Icon:LockKeyhole,title:"Authentication",body:"Private workspaces are not connected in this demo deployment.",details:[["Email","Not signed in"],["Verification","Not connected in demo"],["Auth method","Unavailable"],["2FA status","Not enabled"]],state:"Demo only",tone:"amber",iconClass:"auth",action:{label:"Exit demo",onClick:onExit}},
+    {id:"demo-data",Icon:Inbox,title:"Demo Data",body:"Currently using local sample data for demonstration. No real Gmail connection or candidate data.",details:[["Demo mode",demoModeActive?"Active":"Off"]],state:demoModeActive?"Active":"Off",tone:demoModeActive?"green":"amber",iconClass:"data"},
     {id:"privacy",Icon:ShieldCheck,title:"Privacy & Guardrails",body:"Recruiter-controlled safeguards apply across every workflow.",state:"Required",tone:"green",iconClass:"privacy",tags:["No automatic sending","No message deletion","Human review required","Draft-only replies"]},
     {id:"environment",Icon:FileText,title:"Environment",body:"Frontend demonstration environment prepared for deployment.",details:[["Environment","Frontend Demo"],["Version","v0.1.0-alpha"],["Build status","Vercel-ready frontend"]],state:"Demo ready",tone:"blue",iconClass:"environment"},
     {id:"gmail",Icon:GmailMark,title:"Gmail Readonly Import",body:"Gmail readonly integration is prepared for a later phase. HRMind does not send, delete, relabel, or modify Gmail messages.",state:"Not connected",tone:"amber",iconClass:"gmail",tags:["Readonly only","No auto-send","Not connected"],action:{label:"Configure Gmail",onClick:()=>setSettingsModal("gmail")}},
-    {id:"rag",Icon:FileText,title:"Knowledge Base / RAG",body:"HR policy documents can include onboarding docs, offer templates, interview guidelines, and policy references.",state:localSettings.ragFiles.length?"Files staged locally":"Not connected in demo",tone:localSettings.ragFiles.length?"green":"blue",iconClass:"rag",tags:["Visual readiness only"],upload:true,action:{label:"Configure RAG sources",onClick:()=>setSettingsModal("rag")}}
+    {id:"rag",Icon:FileText,title:"Knowledge Base / RAG",body:"HR policy documents can include onboarding docs, offer templates, interview guidelines, and policy references.",state:localSettings.ragFiles.length?"RAG metadata staged locally":"Not connected in demo",tone:localSettings.ragFiles.length?"green":"blue",iconClass:"rag",tags:["Visual readiness only"],upload:true,action:{label:"Configure RAG sources",onClick:()=>setSettingsModal("rag")}}
   ];
   return <div className="settings-page scroll-list"><section className="settings-list">{rows.map(({id,Icon,title,body,state,tone,iconClass,details,tags,upload,action},index)=>{
     const isDemoRow = id==="demo-data";
@@ -946,7 +911,7 @@ function SettingsView({workspaceMode,workspaceEmail,settings,onExit}:{workspaceM
         <p>{body}</p>
         {details&&<div className={clsx("settings-details",details.length===1&&"compact")}>{details.map(([label,value])=><div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div>}
         {tags&&<div className={clsx("settings-row-tags",isPrivacyRow&&"guardrail-tags",isGmailRow&&"gmail-tags",isRagRow&&"rag-tags")}>{tags.map(tag=><Tag key={tag}>{tag}</Tag>)}</div>}
-        {isDemoRow&&!localSettings.demoMode&&<p className="settings-local-notice">Private workspace requires authentication setup.</p>}
+        {isDemoRow&&isDemoWorkspace&&!localSettings.demoMode&&<p className="settings-local-notice">{PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE}</p>}
         {isPrivacyRow&&!localSettings.guardrails.noAutoSend&&<p className="settings-guardrail-warning">Demo guardrail changed locally. Production email sending still requires backend approval.</p>}
         {upload&&<>
           <button type="button" className={clsx("rag-dropzone",isDragging&&"dragging")} onClick={()=>fileInputRef.current?.click()} onDragEnter={()=>setIsDragging(true)} onDragOver={event=>{event.preventDefault();setIsDragging(true)}} onDragLeave={()=>setIsDragging(false)} onDrop={event=>{event.preventDefault();setIsDragging(false);handleFiles(event.dataTransfer.files)}} aria-label="Upload RAG documents">
@@ -963,14 +928,14 @@ function SettingsView({workspaceMode,workspaceEmail,settings,onExit}:{workspaceM
         </>}
       </div>
       <div className={clsx("settings-row-controls",isPrivacyRow&&"stacked",isGmailRow&&"integration",isRagRow&&"integration rag")}>
-        {isDemoRow?<button type="button" className={clsx("settings-toggle",!localSettings.demoMode&&"off")} aria-pressed={localSettings.demoMode} onClick={()=>setLocalSettings(current=>({...current,demoMode:!current.demoMode}))}><i/>Demo mode: {localSettings.demoMode?"Active":"Off"}</button>:isPrivacyRow?<div className="guardrail-toggles" aria-label="Privacy and guardrail settings">
-          {([["reviewRequired","Review"],["draftOnly","Draft only"],["noAutoSend","No send"]] as [GuardrailKey,string][]).map(([key,label])=><button type="button" key={key} className={clsx(!localSettings.guardrails[key]&&"off")} aria-pressed={localSettings.guardrails[key]} onClick={()=>toggleGuardrail(key)}><i/><span>{label}</span></button>)}
+        {isDemoRow?<button type="button" className={clsx("settings-toggle",!demoModeActive&&"off")} aria-pressed={demoModeActive} disabled={!isDemoWorkspace||!settingsReady} onClick={()=>setLocalSettings(current=>({...current,demoMode:!current.demoMode}))}><i/>Demo mode: {demoModeActive?"Active":"Off"}</button>:isPrivacyRow?<div className="guardrail-toggles" aria-label="Privacy and guardrail settings">
+          {([["reviewRequired","Review"],["draftOnly","Draft only"],["noAutoSend","No send"]] as [GuardrailKey,string][]).map(([key,label])=><button type="button" key={key} className={clsx(!localSettings.guardrails[key]&&"off")} aria-pressed={localSettings.guardrails[key]} disabled={!settingsReady} onClick={()=>toggleGuardrail(key)}><i/><span>{label}</span></button>)}
         </div>:<Status tone={tone}>{state}</Status>}
         {action&&<Button secondary disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
       </div>
     </article>;
   })}
-    <div className="settings-reset"><button type="button" onClick={resetSettings}><RefreshCcw/>Reset demo settings</button><span>Only local Settings preferences and staged file metadata will be cleared.</span></div>
+    <div className="settings-reset"><button type="button" onClick={resetSettings} disabled={!settingsReady}><RefreshCcw/>Reset demo settings</button><span>Only local Settings preferences and staged RAG metadata will be cleared.</span></div>
   </section>
   {settingsModal&&<div className="settings-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)setSettingsModal(null)}}>
     <section className="settings-modal panel" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">

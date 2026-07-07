@@ -8,6 +8,13 @@ const browser = await chromium.launch({
 
 const authPage = await browser.newPage({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 });
 await authPage.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 60_000 });
+await authPage.locator(".overview-layout").waitFor({ state: "visible" });
+const publicDemoChecks = {
+  opensWithoutLogin: await authPage.locator(".overview-layout").isVisible(),
+  localDemoLabel: await authPage.getByText("Local demo", { exact: true }).isVisible(),
+  demoDataVisible: await authPage.getByText("274", { exact: true }).first().isVisible()
+};
+await authPage.locator(".profile-chip").click();
 await authPage.locator(".auth-shell").waitFor({ state: "visible" });
 await authPage.screenshot({ path: "artifacts/auth-screen.png", fullPage: false });
 await authPage.close();
@@ -125,7 +132,7 @@ settingsFunctionalChecks.noSendWarning = await page.getByText("Demo guardrail ch
 const demoToggle = page.getByRole("button", { name: "Demo mode: Active", exact: true });
 await demoToggle.click();
 settingsFunctionalChecks.demoToggle = await page.getByRole("button", { name: "Demo mode: Off", exact: true }).getAttribute("aria-pressed") === "false";
-settingsFunctionalChecks.demoAuthNotice = await page.getByText("Private workspace requires authentication setup.").isVisible();
+settingsFunctionalChecks.demoAuthNotice = await page.getByText("Private workspaces are not connected in this demo deployment. Continue with demo workspace.").isVisible();
 
 await page.getByRole("button", { name: "Configure Gmail", exact: true }).click();
 const gmailDialog = page.getByRole("dialog", { name: "Gmail readonly import" });
@@ -142,7 +149,7 @@ const fileChooser = await fileChooserPromise;
 await fileChooser.setFiles({ name: "employee-policy.pdf", mimeType: "application/pdf", buffer: Buffer.from("Local demo policy") });
 await page.getByText("employee-policy.pdf", { exact: true }).waitFor({ state: "visible" });
 settingsFunctionalChecks.filePicker = true;
-settingsFunctionalChecks.ragStatus = await page.locator(".settings-row-rag .settings-row-controls").getByText("Files staged locally", { exact: true }).isVisible();
+settingsFunctionalChecks.ragStatus = await page.locator(".settings-row-rag .settings-row-controls").getByText("RAG metadata staged locally", { exact: true }).isVisible();
 await page.waitForFunction(() => {
   const value = window.localStorage.getItem("hrmind:settings:v1");
   if (!value) return false;
@@ -186,6 +193,8 @@ await page.screenshot({ path: "artifacts/settings-rag-staged-1366x768.png", full
 await page.getByRole("button", { name: "Reset demo settings", exact: true }).click();
 await page.waitForTimeout(50);
 settingsFunctionalChecks.reset = await page.evaluate(() => window.localStorage.getItem("hrmind:settings:v1") === null);
+settingsFunctionalChecks.resetClearsRag = await page.getByText("recruiting-handbook.txt", { exact: true }).count() === 0;
+settingsFunctionalChecks.resetRestoresGuardrails = await page.getByRole("button", { name: "No send", exact: true }).getAttribute("aria-pressed") === "true";
 
 const destinations = [
   ["Dashboard", ".overview-layout"],
@@ -213,4 +222,4 @@ for (const viewport of [{ width: 1024, height: 768 }, { width: 768, height: 900 
 
 await browser.close();
 
-console.log(JSON.stringify({ overviewMetrics, draftMetrics, settingsMetrics, settingsFunctionalChecks, viewportChecks, consoleErrors }, null, 2));
+console.log(JSON.stringify({ publicDemoChecks, overviewMetrics, draftMetrics, settingsMetrics, settingsFunctionalChecks, viewportChecks, consoleErrors }, null, 2));

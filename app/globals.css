@@ -3556,6 +3556,13 @@ h1,
   cursor: pointer;
 }
 
+.settings-toggle:disabled,
+.guardrail-toggles button:disabled,
+.settings-reset button:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
 .settings-toggle {
   border: 1px solid #cbe8d8;
   font-family: inherit;
