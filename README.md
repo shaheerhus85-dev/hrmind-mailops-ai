@@ -8,7 +8,7 @@ HRMind MailOps AI is a portfolio proof-of-work prototype for recruiter email ope
 
 HRMind MailOps AI explores what a recruiter-facing operations workspace could look like when email triage, candidate context, interview kits, draft replies, and workspace settings live in one focused interface.
 
-The project is intentionally built as a polished demonstration, not as a production SaaS. The current frontend runs as a safe local demo workspace, while the backend foundation is implemented separately with FastAPI and PostgreSQL. PostgreSQL schema, Alembic migrations, seed data, and API routes are implemented and locally verified.
+The project is intentionally built as a polished demonstration, not as a production SaaS. The current frontend is live on Vercel as a safe portfolio demo, and it reads demo workspace data from a live Render FastAPI backend backed by Neon PostgreSQL. Settings changes and RAG document staging remain safe local browser interactions.
 
 The product direction is recruiter-friendly and safety-first: no automatic email sending, no automatic hiring decisions, and human review remains required.
 
@@ -39,7 +39,7 @@ The current implementation focuses on the product workflow, UI quality, safety p
 
 ## Core workflow
 
-1. Open the local demo workspace.
+1. Open the live portfolio demo workspace.
 2. Review recruiter operations metrics on the dashboard.
 3. Triage sample candidate and recruiting-related email threads.
 4. Review candidate fit, skills, gaps, and risk notes.
@@ -59,7 +59,7 @@ The current implementation focuses on the product workflow, UI quality, safety p
 - Workspace Settings panel with local guardrail controls.
 - Local RAG metadata staging for PDF, DOCX, and TXT files.
 - Demo-safe authentication messaging when private workspaces are unavailable.
-- Backend adapter layer prepared for future backend integration.
+- Backend adapter layer with live backend reads and local fallback behavior.
 - FastAPI + PostgreSQL backend foundation with migrations, seed data, and API routes.
 
 ## Safety guardrails
@@ -100,7 +100,7 @@ Backend:
 
 ## Frontend architecture
 
-The frontend is a Next.js application that currently runs as a safe local demo workspace.
+The frontend is a Next.js application that currently runs as a safe live portfolio demo workspace.
 
 Key frontend pieces:
 
@@ -123,7 +123,7 @@ The adapter layer provides a simple interface for future backend wiring:
 - `stageRagSourceMetadata()`
 - `clearDemoSettings()`
 
-For now, the active adapter is the local demo adapter. The frontend remains usable when the backend is offline.
+When `NEXT_PUBLIC_BACKEND_URL` is configured, the frontend uses the backend API adapter for demo workspace read operations. If the backend is unavailable, it falls back to the local demo adapter so the demo remains usable. Settings updates, draft edits, and RAG source staging remain local demo interactions.
 
 ## Backend architecture
 
@@ -176,18 +176,27 @@ The demo seed creates a stable local demo workspace with sample recruiting data 
 
 Implemented and verified:
 
-- polished frontend demo workspace;
+- live Vercel frontend demo workspace;
+- live Render FastAPI backend;
+- Neon PostgreSQL connection;
+- backend-backed demo workspace reads;
+- visible “Backend demo” status label when the live backend is available;
 - local demo mode without login;
 - local Settings controls and persistence;
 - local RAG metadata staging and removal;
-- backend adapter preparation;
+- backend adapter with safe local fallback;
 - FastAPI backend foundation;
 - PostgreSQL schema and Alembic migration;
 - idempotent backend seed script;
-- database-backed backend route verification against local PostgreSQL;
+- database-backed backend route verification against PostgreSQL;
 - frontend typecheck and production build.
 
 This is still a portfolio proof-of-work. The frontend and backend are intentionally not presented as a production SaaS.
+
+Live demo links:
+
+- Frontend live demo: [https://hrmind-mailops-ai.vercel.app](https://hrmind-mailops-ai.vercel.app)
+- Backend health endpoint: [https://hrmind-mailops-api.onrender.com/health](https://hrmind-mailops-api.onrender.com/health)
 
 ## What is intentionally not implemented yet
 
@@ -208,7 +217,6 @@ The following are not live:
 
 Planned next phases:
 
-- connect the frontend adapter to the FastAPI backend;
 - add private workspace authentication;
 - keep demo workspace separate from private workspaces;
 - add readonly Gmail import after explicit recruiter approval flows are designed;

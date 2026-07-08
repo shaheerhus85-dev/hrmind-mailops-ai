@@ -47,7 +47,7 @@ This proof-of-work includes:
 - FastAPI backend foundation;
 - PostgreSQL schema, migrations, seed data, and verified API routes.
 
-The frontend currently runs as a safe local demo workspace. The backend foundation is implemented and locally verified, with the frontend adapter prepared for future API integration.
+The frontend currently runs as a safe live portfolio demo workspace. It reads demo workspace data from the live FastAPI backend, while Settings controls and RAG metadata staging remain safe local browser interactions.
 
 ## Key screens
 
@@ -101,10 +101,10 @@ The frontend is built with:
 - Next.js;
 - React;
 - TypeScript;
-- local demo adapter;
+- backend API adapter with local demo fallback;
 - localStorage persistence.
 
-The local demo adapter keeps the workspace usable when the backend is offline. It stores demo workspace state, Settings preferences, draft edits, and local RAG metadata in the browser.
+When the live backend is available, the frontend displays “Backend demo” and reads demo workspace data through the backend API adapter. If the backend is unavailable, the local demo adapter keeps the workspace usable. Settings preferences, draft edits, and local RAG metadata stay in the browser.
 
 ### Backend
 
@@ -124,19 +124,26 @@ The backend includes models, schemas, migrations, seed data, and routes for work
 
 Current state:
 
-- frontend demo is polished and working;
-- backend foundation is implemented and locally verified;
+- Vercel frontend is live;
+- Render FastAPI backend is live;
+- Neon PostgreSQL is connected;
+- frontend shows “Backend demo” when live backend reads are active;
+- frontend reads demo workspace data from the live backend;
+- Settings and RAG staging remain safe local interactions;
 - PostgreSQL schema, migrations, seed data, and API routes are in place;
-- frontend is not fully connected to the FastAPI backend yet;
 - Gmail, AI classification, real RAG indexing, file storage, and email sending are not live yet.
 
 This is a portfolio proof-of-work with clear next phases, not a launched recruiting platform.
+
+Live demo links:
+
+- Frontend live demo: [https://hrmind-mailops-ai.vercel.app](https://hrmind-mailops-ai.vercel.app)
+- Backend health endpoint: [https://hrmind-mailops-api.onrender.com/health](https://hrmind-mailops-api.onrender.com/health)
 
 ## Next roadmap
 
 Planned next phases:
 
-- connect frontend adapter to FastAPI;
 - add private workspace auth;
 - add readonly Gmail import;
 - add Gemini/Groq AI classification and draft generation;
