@@ -21,6 +21,10 @@ function writeLocal(key:string,value:unknown) {
 export const demoAdapter:BackendAdapter = {
   kind:"demo",
   privateWorkspacesConnected:false,
+  startReadSession(){},
+  getDataSource(){
+    return "local";
+  },
   async getWorkspace<T>(fallback:T){
     return readLocal(DEMO_WORKSPACE_STORAGE_KEY,fallback);
   },
@@ -41,6 +45,12 @@ export const demoAdapter:BackendAdapter = {
   },
   async listDrafts<T>(workspace:{replyDrafts:T[]}){
     return workspace.replyDrafts;
+  },
+  async listInterviewKits<T>(workspace:{interviewKits:T[]}){
+    return workspace.interviewKits;
+  },
+  async listRagSources<T>(workspace:{ragSources?:T[]}){
+    return workspace.ragSources ?? [];
   },
   async saveDraft<T extends {id:number}>(draft:T){
     const workspace=readLocal<{replyDrafts?:T[]}>(DEMO_WORKSPACE_STORAGE_KEY,{});

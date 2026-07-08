@@ -9,7 +9,7 @@ import type { ElementType, ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { clsx } from "clsx";
 import gsap from "gsap";
-import { backend, PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE } from "@/lib/backend";
+import { backend, PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE, type BackendDataSource } from "@/lib/backend";
 import { LogoLockup } from "@/components/brand";
 
 type View = "Overview" | "Inbox Triage" | "Candidate Review" | "Interview Kits" | "Reply Drafts" | "Settings";
@@ -251,6 +251,7 @@ export default function Dashboard() {
   const toastTimer = useRef<number | null>(null);
   const [workspaceMode,setWorkspaceMode] = useState<WorkspaceMode>("loading");
   const workspaceEmail="";
+  const [workspaceDataSource,setWorkspaceDataSource] = useState<BackendDataSource>("local");
   const [workspace,setWorkspace] = useState<WorkspaceState>(()=>createDemoWorkspaceState());
   const [workspaceReady,setWorkspaceReady] = useState(false);
   const [view,setView] = useState<View>("Overview");
@@ -373,19 +374,23 @@ export default function Dashboard() {
   const openDemoWorkspace=async()=>{
     setWorkspaceReady(false);
     const fallback=createDemoWorkspaceState();
+    backend.startReadSession?.();
     try{
       const stored=await backend.getWorkspace<WorkspaceState>(fallback);
       const base=stored?.version===1
         ? {...fallback,...stored,workspaceSettings:{...fallback.workspaceSettings,...stored.workspaceSettings}}
         : fallback;
-      const [inboxThreads,workspaceCandidates,replyDrafts]=await Promise.all([
+      const [inboxThreads,workspaceCandidates,replyDrafts,interviewKits]=await Promise.all([
         backend.listEmailThreads(base),
         backend.listCandidates(base),
-        backend.listDrafts(base)
+        backend.listDrafts(base),
+        backend.listInterviewKits(base)
       ]);
-      setWorkspace(refreshWorkspace({...base,inboxThreads,candidates:workspaceCandidates,replyDrafts}));
+      setWorkspace(refreshWorkspace({...base,inboxThreads,candidates:workspaceCandidates,replyDrafts,interviewKits}));
+      setWorkspaceDataSource(backend.getDataSource?.() ?? "local");
     }catch{
       setWorkspace(fallback);
+      setWorkspaceDataSource("local");
     }
     window.sessionStorage.setItem("hrmind-demo-workspace","true");
     setCandidateId(1);
@@ -423,7 +428,7 @@ export default function Dashboard() {
   return <main className="app-viewport" ref={appRef}><div className="app-frame"><div className="app-inner">
     <LeftRail view={view} onView={go}/>
     <div className="app-main">
-      <TopNav menu={menu} query={query} workflow={workflow} workspaceMode={workspaceMode} workspaceEmail={workspaceEmail} onExit={exitWorkspace} onQuery={setQuery} onWorkflow={setWorkflow} onMenu={()=>setMenu(!menu)} onView={go}/>
+      <TopNav menu={menu} query={query} workflow={workflow} workspaceMode={workspaceMode} workspaceEmail={workspaceEmail} workspaceDataSource={workspaceDataSource} onExit={exitWorkspace} onQuery={setQuery} onWorkflow={setWorkflow} onMenu={()=>setMenu(!menu)} onView={go}/>
       <div className={clsx("app-workspace",(view==="Overview"||view==="Settings")&&"dashboard-workspace",view==="Inbox Triage"&&"inbox-workspace",view==="Candidate Review"&&"candidate-workspace",view==="Interview Kits"&&"interview-workspace",view==="Reply Drafts"&&"drafts-workspace",view==="Settings"&&"settings-workspace")}>
       <section className={clsx("center-workspace",view==="Overview"&&"overview-workspace")}>
         {view!=="Overview"&&<WorkspaceHeader view={view} workspaceMode={workspaceMode}/>}
@@ -488,10 +493,11 @@ function AuthGate({onDemo}:{onDemo:()=>void}) {
   </main>
 }
 
-function TopNav({menu,query,workflow,workspaceMode,workspaceEmail,onExit,onQuery,onWorkflow,onMenu,onView}:{menu:boolean;query:string;workflow:string;workspaceMode:WorkspaceMode;workspaceEmail:string;onExit:()=>void;onQuery:(v:string)=>void;onWorkflow:(v:string)=>void;onMenu:()=>void;onView:(v:View)=>void}) {
+function TopNav({menu,query,workflow,workspaceMode,workspaceEmail,workspaceDataSource,onExit,onQuery,onWorkflow,onMenu,onView}:{menu:boolean;query:string;workflow:string;workspaceMode:WorkspaceMode;workspaceEmail:string;workspaceDataSource:BackendDataSource;onExit:()=>void;onQuery:(v:string)=>void;onWorkflow:(v:string)=>void;onMenu:()=>void;onView:(v:View)=>void}) {
+  const demoLabel=workspaceDataSource==="backend" ? "Backend demo" : "Local demo";
   return <nav className="top-nav">
     <div className="header-search"><Search/><input value={query} onChange={event=>onQuery(event.target.value)} placeholder="Search candidates, emails, or workflows"/><label className="workflow-select"><SlidersHorizontal/><select aria-label="Workflow filter" value={workflow} onChange={event=>onWorkflow(event.target.value)}><option>All workflows</option><option>CV Application</option><option>Candidate Follow-up</option><option>HR Policy</option><option>Offers / Salary</option></select><ChevronDown/></label></div>
-    <div className="nav-actions"><span className={clsx("demo-state",workspaceMode==="private"&&"private")}><i/>{workspaceMode==="private"?"Private workspace":"Local demo"}</span><IconButton label="Settings" onClick={()=>onView("Settings")}><Settings/></IconButton><IconButton label="Notifications"><Bell/></IconButton><button className="profile-chip" title="Exit workspace" onClick={onExit}><span>{workspaceMode==="private"?(workspaceEmail[0]??"R").toUpperCase():"SJ"}</span><span><strong>{workspaceMode==="private"?"Private workspace":"Demo workspace"}</strong><small>{workspaceMode==="private"?workspaceEmail:"Demo workspace"}</small></span></button><button className="mobile-menu" onClick={onMenu}>{menu?<X/>:<Menu/>}</button></div>
+    <div className="nav-actions"><span className={clsx("demo-state",workspaceMode==="private"&&"private")}><i/>{workspaceMode==="private"?"Private workspace":demoLabel}</span><IconButton label="Settings" onClick={()=>onView("Settings")}><Settings/></IconButton><IconButton label="Notifications"><Bell/></IconButton><button className="profile-chip" title="Exit workspace" onClick={onExit}><span>{workspaceMode==="private"?(workspaceEmail[0]??"R").toUpperCase():"SJ"}</span><span><strong>{workspaceMode==="private"?"Private workspace":"Demo workspace"}</strong><small>{workspaceMode==="private"?workspaceEmail:"Demo workspace"}</small></span></button><button className="mobile-menu" onClick={onMenu}>{menu?<X/>:<Menu/>}</button></div>
     {menu&&<div className="mobile-nav">{nav.map(([label,target])=><button key={label} onClick={()=>onView(target)}>{label}</button>)}</div>}
   </nav>
 }

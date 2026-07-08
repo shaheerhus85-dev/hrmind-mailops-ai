@@ -11,6 +11,8 @@ const unavailable=()=>new BackendUnavailableError(
 export const firebaseAdapter:BackendAdapter = {
   kind:"firebase",
   privateWorkspacesConnected:false,
+  startReadSession(){},
+  getDataSource(){return "local"},
   async getWorkspace<T>(_fallback:T){throw unavailable()},
   async saveWorkspace<T>(_workspace:T){throw unavailable()},
   async getSettings<T>(_fallback:T){throw unavailable()},
@@ -18,6 +20,8 @@ export const firebaseAdapter:BackendAdapter = {
   async listEmailThreads<T>(_workspace:{inboxThreads:T[]}){throw unavailable()},
   async listCandidates<T>(_workspace:{candidates:T[]}){throw unavailable()},
   async listDrafts<T>(_workspace:{replyDrafts:T[]}){throw unavailable()},
+  async listInterviewKits<T>(_workspace:{interviewKits:T[]}){throw unavailable()},
+  async listRagSources<T>(_workspace:{ragSources?:T[]}){throw unavailable()},
   async saveDraft<T extends {id:number}>(_draft:T){throw unavailable()},
   async stageRagSourceMetadata<T>(_sources:T[]){throw unavailable()},
   async clearDemoSettings(){throw unavailable()}
