@@ -32,6 +32,7 @@ type ReplyLength = "Short" | "Medium" | "Detailed";
 type RegenerateSettings = { purpose:ReplyPurpose; tone:ReplyTone; length:ReplyLength; useSources:boolean; extraInstruction:string };
 
 const policySources = ["Interview Process Guide", "Offer Communication Policy", "Benefits FAQ"];
+const DEMO_SESSION_STORAGE_KEY = "hrmind:demo-session:v1";
 const regenerateDefaults: RegenerateSettings = {
   purpose: "Interview invitation",
   tone: "Professional",
@@ -372,6 +373,7 @@ export default function Dashboard() {
   },[view]);
 
   const openDemoWorkspace=async()=>{
+    window.localStorage.setItem(DEMO_SESSION_STORAGE_KEY,"true");
     setWorkspaceReady(false);
     const fallback=createDemoWorkspaceState();
     backend.startReadSession?.();
@@ -392,7 +394,6 @@ export default function Dashboard() {
       setWorkspace(fallback);
       setWorkspaceDataSource("local");
     }
-    window.sessionStorage.setItem("hrmind-demo-workspace","true");
     setCandidateId(1);
     setEmailId(1);
     setDraftIndex(0);
@@ -400,7 +401,10 @@ export default function Dashboard() {
     setWorkspaceReady(true);
   };
 
-  useEffect(()=>{void openDemoWorkspace()},[]);
+  useEffect(()=>{
+    if(window.localStorage.getItem(DEMO_SESSION_STORAGE_KEY)==="true") void openDemoWorkspace();
+    else setWorkspaceMode("gate");
+  },[]);
 
   useEffect(()=>{
     if(workspaceMode!=="demo"||!workspaceReady) return;
@@ -415,7 +419,7 @@ export default function Dashboard() {
   useEffect(()=>()=>{if(toastTimer.current) window.clearTimeout(toastTimer.current)},[]);
 
   const exitWorkspace = () => {
-    window.sessionStorage.removeItem("hrmind-demo-workspace");
+    window.localStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
     setWorkspaceReady(false);
     setWorkspaceMode("gate");
     setView("Overview");
@@ -438,7 +442,7 @@ export default function Dashboard() {
           {view==="Candidate Review" && <CandidateView items={visibleCandidates} selected={candidate} onSelect={chooseCandidate} onInterview={openInterviewKit} onDraft={routeDraftForCandidate} onReviewed={markCandidateReviewed}/>}
           {view==="Interview Kits" && <InterviewView items={visibleCandidates} selected={candidate} kit={workspace.interviewKits.find(item=>item.candidateId===candidate.id)} copied={kitCopied} onSelect={chooseCandidate} onCopy={copyKit} onReviewed={markKitReviewed}/>}
           {view==="Reply Drafts" && <DraftsView drafts={workspace.replyDrafts} candidates={workspace.candidates} selected={draftIndex} draft={selectedDraft} variant={draftVariant} body={selectedDraftBody} copied={copied} reviewed={selectedDraft?.reviewStatus==="reviewed"} generationSettings={selectedDraftGeneration} onSelect={chooseDraft} onVariant={setDraftVariant} onBody={editDraftBody} onCopy={copy} onReviewed={markDraftReviewed} onKeep={()=>showToast("Kept as draft")} onRegenerate={regenerateDraftOptions}/>}
-          {view==="Settings" && <SettingsView workspaceMode={workspaceMode} settings={workspace.workspaceSettings} onExit={exitWorkspace}/>}
+          {view==="Settings" && <SettingsView settings={workspace.workspaceSettings} onExit={exitWorkspace}/>}
         </div>
       </section>
       {view!=="Overview"&&view!=="Settings"&&(hasContextData?<ContextIntelligence view={view} candidate={candidate} email={email} draft={selectedDraft} variant={draftVariant} reviewed={view==="Inbox Triage"?email.status==="reviewed":view==="Candidate Review"?candidate.reviewStatus==="reviewed":view==="Interview Kits"?workspace.interviewKits.find(item=>item.candidateId===candidate.id)?.status==="reviewed":selectedDraft?.reviewStatus==="reviewed"} kitCopied={kitCopied} draftCopied={copied} draftBody={selectedDraftBody} generationSettings={selectedDraftGeneration} onAnalyze={analyzeCandidate} onInterview={openInterviewKit} onDraft={routeDraftForCandidate} onCopyKit={copyKit} onCopyDraft={copy} onReviewed={view==="Inbox Triage"?markEmailReviewed:view==="Candidate Review"?markCandidateReviewed:view==="Interview Kits"?markKitReviewed:markDraftReviewed} onKeep={view==="Inbox Triage"?keepInQueue:()=>showToast("Kept as draft")}/>:<ContextEmpty/>)}
@@ -474,7 +478,7 @@ function AuthGate({onDemo}:{onDemo:()=>void}) {
           <span className="auth-icon"><LockKeyhole/></span>
           <h2>Welcome to MailOps AI</h2>
           <p>Choose how you want to open the recruiter operations workspace.</p>
-          <div className="auth-actions"><button className="auth-primary" onClick={()=>setScreen("login")}><LogIn/> Log in</button><button className="auth-secondary" onClick={()=>setScreen("signup")}>Create account</button><button className="auth-demo" onClick={onDemo}><Sparkles/> Continue with demo workspace</button></div>
+          <div className="auth-actions"><button className="auth-primary" onClick={onDemo}><Sparkles/> Continue with demo workspace</button><button className="auth-secondary" onClick={()=>setScreen("login")}><LogIn/> Create private workspace / Login</button></div>
           <div className="auth-safety"><ShieldCheck/><span><strong>Workspace trust notes</strong>{PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE} Gmail is not connected and no automatic email sending is enabled.</span></div>
         </>:<form onSubmit={submit}>
           <button type="button" className="auth-back" onClick={()=>{setScreen("welcome");setError("")}}>← Back</button>
@@ -795,7 +799,7 @@ function formatFileSize(bytes:number){
   return `${(bytes/(1024*1024)).toFixed(1)} MB`;
 }
 
-function SettingsView({workspaceMode,settings,onExit}:{workspaceMode:WorkspaceMode;settings:WorkspaceSettingsState;onExit:()=>void}) {
+function SettingsView({settings,onExit}:{settings:WorkspaceSettingsState;onExit:()=>void}) {
   type SettingsRow = {
     id: string;
     Icon: ElementType;
@@ -816,8 +820,6 @@ function SettingsView({workspaceMode,settings,onExit}:{workspaceMode:WorkspaceMo
   const [uploadMessage,setUploadMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skipNextPersist = useRef(false);
-  const isDemoWorkspace=workspaceMode==="demo";
-  const demoModeActive=isDemoWorkspace&&localSettings.demoMode;
 
   useEffect(()=>{
     let active=true;
@@ -832,7 +834,7 @@ function SettingsView({workspaceMode,settings,onExit}:{workspaceMode:WorkspaceMo
           draftOnly:typeof guardrails?.draftOnly==="boolean"?guardrails.draftOnly:true,
           noAutoSend:typeof guardrails?.noAutoSend==="boolean"?guardrails.noAutoSend:true
         },
-        demoMode:typeof parsed.demoMode==="boolean"?parsed.demoMode:true,
+        demoMode:true,
         ragFiles:parseStagedRagFiles(parsed.ragFiles)
       });
     }).catch(()=>{
@@ -899,7 +901,7 @@ function SettingsView({workspaceMode,settings,onExit}:{workspaceMode:WorkspaceMo
   const rows:SettingsRow[]=[
     {id:"workspace",Icon:Building2,title:"Workspace",body:"Core workspace identity and local demo membership.",details:[["Workspace name",settings.workspaceName],["Workspace ID",settings.workspaceId],["Created",settings.demo?"Demo only":"Private workspace"],["Members","1"]],state:settings.demo?"Demo":"Private",tone:"blue",iconClass:"workspace"},
     {id:"authentication",Icon:LockKeyhole,title:"Authentication",body:"Private workspaces are not connected in this demo deployment.",details:[["Email","Not signed in"],["Verification","Not connected in demo"],["Auth method","Unavailable"],["2FA status","Not enabled"]],state:"Demo only",tone:"amber",iconClass:"auth",action:{label:"Exit demo",onClick:onExit}},
-    {id:"demo-data",Icon:Inbox,title:"Demo Data",body:"Currently using local sample data for demonstration. No real Gmail connection or candidate data.",details:[["Demo mode",demoModeActive?"Active":"Off"]],state:demoModeActive?"Active":"Off",tone:demoModeActive?"green":"amber",iconClass:"data"},
+    {id:"demo-data",Icon:Inbox,title:"Demo Data",body:"Demo mode is active for public visitors.",details:[["Demo mode","Active"],["Real data","Create a private workspace to use real data."]],state:"Active",tone:"green",iconClass:"data"},
     {id:"privacy",Icon:ShieldCheck,title:"Privacy & Guardrails",body:"Recruiter-controlled safeguards apply across every workflow.",state:"Required",tone:"green",iconClass:"privacy",tags:["No automatic sending","No message deletion","Human review required","Draft-only replies"]},
     {id:"environment",Icon:FileText,title:"Environment",body:"Frontend demonstration environment prepared for deployment.",details:[["Environment","Frontend Demo"],["Version","v0.1.0-alpha"],["Build status","Vercel-ready frontend"]],state:"Demo ready",tone:"blue",iconClass:"environment"},
     {id:"gmail",Icon:GmailMark,title:"Gmail Readonly Import",body:"Gmail readonly integration is prepared for a later phase. HRMind does not send, delete, relabel, or modify Gmail messages.",state:"Not connected",tone:"amber",iconClass:"gmail",tags:["Readonly only","No auto-send","Not connected"],action:{label:"Configure Gmail",onClick:()=>setSettingsModal("gmail")}},
@@ -917,7 +919,6 @@ function SettingsView({workspaceMode,settings,onExit}:{workspaceMode:WorkspaceMo
         <p>{body}</p>
         {details&&<div className={clsx("settings-details",details.length===1&&"compact")}>{details.map(([label,value])=><div key={label}><small>{label}</small><strong>{value}</strong></div>)}</div>}
         {tags&&<div className={clsx("settings-row-tags",isPrivacyRow&&"guardrail-tags",isGmailRow&&"gmail-tags",isRagRow&&"rag-tags")}>{tags.map(tag=><Tag key={tag}>{tag}</Tag>)}</div>}
-        {isDemoRow&&isDemoWorkspace&&!localSettings.demoMode&&<p className="settings-local-notice">{PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE}</p>}
         {isPrivacyRow&&!localSettings.guardrails.noAutoSend&&<p className="settings-guardrail-warning">Demo guardrail changed locally. Production email sending still requires backend approval.</p>}
         {upload&&<>
           <button type="button" className={clsx("rag-dropzone",isDragging&&"dragging")} onClick={()=>fileInputRef.current?.click()} onDragEnter={()=>setIsDragging(true)} onDragOver={event=>{event.preventDefault();setIsDragging(true)}} onDragLeave={()=>setIsDragging(false)} onDrop={event=>{event.preventDefault();setIsDragging(false);handleFiles(event.dataTransfer.files)}} aria-label="Upload RAG documents">
@@ -934,7 +935,7 @@ function SettingsView({workspaceMode,settings,onExit}:{workspaceMode:WorkspaceMo
         </>}
       </div>
       <div className={clsx("settings-row-controls",isPrivacyRow&&"stacked",isGmailRow&&"integration",isRagRow&&"integration rag")}>
-        {isDemoRow?<button type="button" className={clsx("settings-toggle",!demoModeActive&&"off")} aria-pressed={demoModeActive} disabled={!isDemoWorkspace||!settingsReady} onClick={()=>setLocalSettings(current=>({...current,demoMode:!current.demoMode}))}><i/>Demo mode: {demoModeActive?"Active":"Off"}</button>:isPrivacyRow?<div className="guardrail-toggles" aria-label="Privacy and guardrail settings">
+        {isDemoRow?<Status tone="green">Demo mode active</Status>:isPrivacyRow?<div className="guardrail-toggles" aria-label="Privacy and guardrail settings">
           {([["reviewRequired","Review"],["draftOnly","Draft only"],["noAutoSend","No send"]] as [GuardrailKey,string][]).map(([key,label])=><button type="button" key={key} className={clsx(!localSettings.guardrails[key]&&"off")} aria-pressed={localSettings.guardrails[key]} disabled={!settingsReady} onClick={()=>toggleGuardrail(key)}><i/><span>{label}</span></button>)}
         </div>:<Status tone={tone}>{state}</Status>}
         {action&&<Button secondary disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}

@@ -3,7 +3,7 @@ import { demoAdapter } from "@/lib/backend/demoAdapter";
 import { firebaseConfigured } from "@/lib/firebase";
 
 export const PRIVATE_WORKSPACE_UNAVAILABLE_MESSAGE =
-  "Private workspaces are not connected in this demo deployment. Continue with demo workspace.";
+  "Private workspaces are coming next. Continue with demo workspace for now.";
 
 export const backend=backendApiConfigured ? apiAdapter : demoAdapter;
 

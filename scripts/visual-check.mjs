@@ -8,15 +8,22 @@ const browser = await chromium.launch({
 
 const authPage = await browser.newPage({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 });
 await authPage.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 60_000 });
-await authPage.locator(".overview-layout").waitFor({ state: "visible" });
+await authPage.locator(".auth-shell").waitFor({ state: "visible" });
 const publicDemoChecks = {
-  opensWithoutLogin: await authPage.locator(".overview-layout").isVisible(),
-  localDemoLabel: await authPage.getByText("Local demo", { exact: true }).isVisible(),
-  demoDataVisible: await authPage.getByText("274", { exact: true }).first().isVisible()
+  opensOnOnboarding: await authPage.locator(".auth-shell").isVisible(),
+  demoActionVisible: await authPage.getByRole("button", { name: /continue with demo workspace/i }).isVisible(),
+  privateActionVisible: await authPage.getByRole("button", { name: /create private workspace \/ login/i }).isVisible()
 };
+await authPage.screenshot({ path: "artifacts/auth-screen.png", fullPage: false });
+await authPage.getByRole("button", { name: /continue with demo workspace/i }).click();
+await authPage.locator(".overview-layout").waitFor({ state: "visible" });
+publicDemoChecks.continueDemoOpensDashboard = true;
+await authPage.reload({ waitUntil: "domcontentloaded" });
+await authPage.locator(".overview-layout").waitFor({ state: "visible" });
+publicDemoChecks.refreshKeepsDemo = true;
 await authPage.locator(".profile-chip").click();
 await authPage.locator(".auth-shell").waitFor({ state: "visible" });
-await authPage.screenshot({ path: "artifacts/auth-screen.png", fullPage: false });
+publicDemoChecks.exitReturnsToOnboarding = await authPage.evaluate(() => localStorage.getItem("hrmind:demo-session:v1") === null);
 await authPage.close();
 
 const iconPage = await browser.newPage({ viewport: { width: 160, height: 160 }, deviceScaleFactor: 2 });
@@ -27,7 +34,7 @@ await iconPage.close();
 
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 });
 await page.emulateMedia({ reducedMotion: "reduce" });
-await page.addInitScript(() => window.sessionStorage.setItem("hrmind-demo-workspace", "true"));
+await page.addInitScript(() => window.localStorage.setItem("hrmind:demo-session:v1", "true"));
 const consoleErrors = [];
 page.on("console", message => {
   if (message.type() === "error") consoleErrors.push(message.text());
@@ -129,10 +136,9 @@ for (const label of ["Review", "Draft only", "No send"]) {
 }
 settingsFunctionalChecks.noSendWarning = await page.getByText("Demo guardrail changed locally. Production email sending still requires backend approval.").isVisible();
 
-const demoToggle = page.getByRole("button", { name: "Demo mode: Active", exact: true });
-await demoToggle.click();
-settingsFunctionalChecks.demoToggle = await page.getByRole("button", { name: "Demo mode: Off", exact: true }).getAttribute("aria-pressed") === "false";
-settingsFunctionalChecks.demoAuthNotice = await page.getByText("Private workspaces are not connected in this demo deployment. Continue with demo workspace.").isVisible();
+settingsFunctionalChecks.demoStatus = await page.getByText("Demo mode is active for public visitors.", { exact: true }).isVisible();
+settingsFunctionalChecks.realDataNotice = await page.getByText("Create a private workspace to use real data.", { exact: true }).isVisible();
+settingsFunctionalChecks.noDemoToggle = await page.getByRole("button", { name: /demo mode:/i }).count() === 0;
 
 await page.getByRole("button", { name: "Configure Gmail", exact: true }).click();
 const gmailDialog = page.getByRole("dialog", { name: "Gmail readonly import" });
@@ -154,7 +160,7 @@ await page.waitForFunction(() => {
   const value = window.localStorage.getItem("hrmind:settings:v1");
   if (!value) return false;
   const parsed = JSON.parse(value);
-  return parsed.guardrails.noAutoSend === false && parsed.demoMode === false && parsed.ragFiles?.[0]?.name === "employee-policy.pdf";
+  return parsed.guardrails.noAutoSend === false && parsed.demoMode === true && parsed.ragFiles?.[0]?.name === "employee-policy.pdf";
 });
 settingsFunctionalChecks.localStorage = true;
 await ragDialog.getByRole("button", { name: "Close", exact: true }).click();
@@ -165,7 +171,7 @@ await page.locator(".rail-settings").click();
 await page.locator(".settings-page").waitFor({ state: "visible" });
 settingsFunctionalChecks.refreshPersistence =
   await page.getByRole("button", { name: "No send", exact: true }).getAttribute("aria-pressed") === "false"
-  && await page.getByRole("button", { name: "Demo mode: Off", exact: true }).getAttribute("aria-pressed") === "false"
+  && await page.getByText("Demo mode is active for public visitors.", { exact: true }).isVisible()
   && await page.getByText("employee-policy.pdf", { exact: true }).isVisible();
 
 await page.getByRole("button", { name: "Remove", exact: true }).click();

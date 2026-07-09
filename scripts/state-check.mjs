@@ -6,9 +6,7 @@ const browser = await chromium.launch({
   headless: true
 });
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-await page.addInitScript(() => {
-  window.sessionStorage.setItem("hrmind-demo-workspace", "true");
-});
+await page.addInitScript(() => window.localStorage.setItem("hrmind:demo-session:v1", "true"));
 
 const readState = () => page.evaluate(storageKey => JSON.parse(window.localStorage.getItem(storageKey) ?? "null"), key);
 const expect = (condition, message) => {
