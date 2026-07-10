@@ -4,8 +4,23 @@
 
 :root {
   color-scheme: light;
-  --font-sans: "Inter Variable", Inter, "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display: "Inter Variable", Inter, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-sans);
+  --text-kpi: 30px;
+  --weight-kpi: 700;
+  --text-h1: 28px;
+  --weight-h1: 700;
+  --text-h2: 22px;
+  --weight-h2: 600;
+  --text-section: 16px;
+  --weight-section: 600;
+  --text-body: 14px;
+  --weight-body: 400;
+  --text-caption: 12px;
+  --weight-caption: 400;
+  --tracking-tight: -0.02em;
+  --tracking-soft: -0.01em;
+  --tracking-label: 0.04em;
   --type-hero: 34px;
   --type-page-title: 32px;
   --type-section: 18px;
@@ -3999,4 +4014,132 @@ h1,
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
+}
+
+/* Phase 7A: single-font typography system */
+body { font-size: var(--text-body); font-weight: var(--weight-body); }
+
+.workspace-header h1 {
+  font-size: var(--text-h1);
+  font-weight: var(--weight-h1);
+  letter-spacing: var(--tracking-tight);
+}
+.dashboard-hero h1 {
+  font-size: var(--text-h1);
+  font-weight: var(--weight-h1);
+  letter-spacing: -.015em;
+}
+.auth-positioning h1 {
+  font-size: clamp(40px, 4vw, 44px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: var(--tracking-tight);
+}
+.auth-positioning > span {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+.auth-positioning > p { font-size: 16px; font-weight: 400; line-height: 1.6; }
+
+.overview-stat strong,
+.pipeline-total > strong,
+.triage-donut strong,
+.detail-heading > strong,
+.focus-top > strong,
+.intel-score strong {
+  color: var(--text-primary);
+  font-size: var(--text-kpi);
+  font-weight: var(--weight-kpi);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+}
+.overview-stat:nth-child(n) strong { color: var(--text-primary); }
+
+.panel-title h2,
+.priority-heading h2,
+.inbox-workspace .intelligence-scroll > .label {
+  font-size: var(--text-section);
+  font-weight: var(--weight-section);
+  letter-spacing: var(--tracking-soft);
+}
+.overview-stat h2,
+.priority-card h3,
+.dashboard-inbox article strong,
+.quick-queue strong,
+.list-toolbar strong,
+.list-heading strong,
+.candidate-workspace .content-head h2,
+.kits-workspace .content-head h2,
+.drafts-workspace .content-head h2,
+.setting-card h2,
+.gmail-card h2,
+.auth-status-card h2 {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.sidebar-logo .brand-copy strong { font-size: 18px; font-weight: 600; letter-spacing: var(--tracking-soft); }
+.sidebar-logo .brand-copy small {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.rail-navigation span, .rail-settings span { font-size: 14px; font-weight: 500; }
+.rail-navigation button.active span, .rail-settings.active span { font-weight: 600; }
+.rail-safety span { font-size: 12px; font-weight: 500; }
+
+.preview-head,
+.table-head,
+.overview-candidate-head {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.email-row b,
+.candidate-row .person strong,
+.overview-candidate-table .person strong,
+.person-row strong { font-size: 14px; font-weight: 500; }
+.email-row > span > strong,
+.candidate-row,
+.candidate-row > span,
+.overview-candidate-table article,
+.question li,
+.draft-body p,
+.draft-body textarea { font-size: 14px; font-weight: 400; }
+.email-row em,
+.email-row b small,
+.draft-row small,
+.draft-row time { font-size: var(--text-caption); font-weight: 400; color: var(--muted); }
+.question li, .draft-body p, .draft-body textarea { line-height: 1.55; }
+.variant-picker strong, .draft-row strong { font-size: 14px; font-weight: 600; }
+
+.tag, .status, .draft-status, .settings-toggle, .guardrail-toggles span {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  line-height: 1.2;
+}
+.settings-row-copy h2, .settings-details strong { font-size: 14px; font-weight: 500; }
+.settings-row-copy p, .settings-details small, .rag-dropzone small { font-size: 12px; font-weight: 400; }
+.button, .auth-primary, .auth-secondary, .auth-demo { font-size: 14px; font-weight: 600; }
+
+/* Readability floor for previously extra-small supporting copy. */
+.brand-lockup.compact .brand-copy small,
+.avatar,
+.gmail-card > button,
+.onboarding-checklist > div small,
+.onboarding-checklist p span,
+.onboarding-checklist p strong,
+.toast span,
+.kit-status-card small,
+.intel-empty p,
+.draft-empty-note p,
+.empty-results p,
+.overview-candidate-table .avatar { font-size: var(--text-caption); }
+
+@media (max-width: 600px) {
+  .auth-positioning h1 { font-size: 40px; }
+  .dashboard-hero h1, .workspace-header h1 { font-size: 28px; }
 }
