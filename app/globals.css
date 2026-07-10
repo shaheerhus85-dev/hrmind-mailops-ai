@@ -4143,3 +4143,66 @@ body { font-size: var(--text-body); font-weight: var(--weight-body); }
   .auth-positioning h1 { font-size: 40px; }
   .dashboard-hero h1, .workspace-header h1 { font-size: 28px; }
 }
+
+/* Phase 7B: shell, brand, and responsive action polish */
+.app-inner { grid-template-columns: 92px minmax(0, 1fr); }
+.left-rail { padding-inline: 6px; box-shadow: 3px 0 12px rgba(14, 91, 145, .07); }
+.sidebar-logo { height: 82px; padding-inline: 0; }
+.sidebar-logo .brand-lockup { gap: 1px; }
+.sidebar-logo .brand-mark { width: 40px; height: 40px; }
+.sidebar-logo .brand-copy strong { font-size: 16px; }
+.sidebar-logo .brand-copy small { font-size: 12px; }
+.rail-navigation { gap: 5px; }
+.rail-navigation button, .rail-settings {
+  height: 60px;
+  padding-inline: 2px;
+  border-radius: 9px;
+}
+.rail-navigation svg, .rail-settings svg { width: 20px; height: 20px; }
+.rail-navigation span, .rail-settings span { font-size: 12px; }
+.rail-safety { min-height: 50px; padding-inline: 2px; box-shadow: none; }
+.rail-safety span { font-size: 12px; }
+
+.brand-mark { filter: drop-shadow(0 2px 4px rgba(5, 63, 117, .12)); }
+.sidebar-logo .brand-mark, .auth-story .brand-mark { filter: drop-shadow(0 3px 7px rgba(3, 42, 89, .18)); }
+
+.panel { box-shadow: 0 1px 2px rgba(18, 50, 79, .035), 0 5px 16px rgba(18, 50, 79, .035); }
+.dashboard-hero { box-shadow: 0 8px 22px rgba(6, 75, 150, .12); }
+
+.drafts-workspace,
+.drafts-workspace .center-workspace,
+.drafts-workspace .draft-view,
+.drafts-workspace .draft-editor,
+.drafts-workspace .intelligence-panel { min-width: 0; }
+.drafts-workspace .draft-view { grid-template-columns: minmax(210px, 240px) minmax(0, 1fr); }
+.drafts-workspace .variant-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.drafts-workspace .variant-picker button { min-width: 0; overflow: hidden; }
+.drafts-workspace .variant-picker strong,
+.drafts-workspace .variant-picker small { overflow-wrap: anywhere; }
+.drafts-workspace .draft-editor .action-bar {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.drafts-workspace .draft-editor .action-bar .button {
+  min-width: 0;
+  flex: 0 1 auto;
+  padding-inline: 10px;
+  white-space: normal;
+}
+.drafts-workspace .draft-editor .action-bar .text-action {
+  min-height: 40px;
+  margin-left: auto;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+.drafts-workspace .intel-actions { min-width: 0; }
+.drafts-workspace .intel-actions .button { min-width: 0; flex: 1 1 100%; white-space: normal; }
+
+@media (max-width: 1100px) and (min-width: 901px) {
+  .app-inner { grid-template-columns: 92px minmax(0, 1fr); }
+  .drafts-workspace .draft-view { grid-template-columns: 210px minmax(0, 1fr); }
+  .drafts-workspace .draft-editor .action-bar .text-action { margin-left: 0; }
+}

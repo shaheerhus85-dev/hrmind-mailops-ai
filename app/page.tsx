@@ -394,12 +394,21 @@ export default function Dashboard() {
     return ()=>context.revert();
   },[view]);
 
-  const openDemoWorkspace=async()=>{
+  const openDemoWorkspace=()=>{
     clearPrivateSession();
     setPrivateSession(null);
     window.localStorage.setItem(DEMO_SESSION_STORAGE_KEY,"true");
-    setWorkspaceReady(false);
     const fallback=createDemoWorkspaceState();
+    setWorkspace(fallback);
+    setWorkspaceDataSource("local");
+    setCandidateId(1);
+    setEmailId(1);
+    setDraftIndex(0);
+    setView("Overview");
+    setWorkspaceMode("demo");
+    setWorkspaceReady(true);
+
+    void (async()=>{
     backend.startReadSession?.();
     try{
       const stored=await backend.getWorkspace<WorkspaceState>(fallback);
@@ -415,14 +424,9 @@ export default function Dashboard() {
       setWorkspace(refreshWorkspace({...base,inboxThreads,candidates:workspaceCandidates,replyDrafts,interviewKits}));
       setWorkspaceDataSource(backend.getDataSource?.() ?? "local");
     }catch{
-      setWorkspace(fallback);
       setWorkspaceDataSource("local");
     }
-    setCandidateId(1);
-    setEmailId(1);
-    setDraftIndex(0);
-    setWorkspaceMode("demo");
-    setWorkspaceReady(true);
+    })();
   };
 
   const openPrivateWorkspace=async(session:PrivateSession)=>{
@@ -451,7 +455,7 @@ export default function Dashboard() {
     const session=readPrivateSession();
     if(session){
       void openPrivateWorkspace(session).catch(()=>{clearPrivateSession();setPrivateSession(null);setWorkspaceMode("gate")});
-    }else if(window.localStorage.getItem(DEMO_SESSION_STORAGE_KEY)==="true") void openDemoWorkspace();
+    }else if(window.localStorage.getItem(DEMO_SESSION_STORAGE_KEY)==="true") openDemoWorkspace();
     else setWorkspaceMode("gate");
   },[]);
 
@@ -477,7 +481,7 @@ export default function Dashboard() {
   };
 
   if(workspaceMode==="loading") return <div className="auth-loading"><LogoLockup compact/><span>Preparing HRMind MailOps AI</span></div>;
-  if(workspaceMode==="gate") return <AuthGate onDemo={()=>{void openDemoWorkspace()}} onPrivate={session=>openPrivateWorkspace(session)}/>;
+  if(workspaceMode==="gate") return <AuthGate onDemo={openDemoWorkspace} onPrivate={session=>openPrivateWorkspace(session)}/>;
   if(!workspaceReady) return <div className="auth-loading"><LogoLockup compact/><span>Preparing HRMind MailOps AI</span></div>;
 
   return <main className="app-viewport" ref={appRef}><div className="app-frame"><div className="app-inner">
