@@ -36,6 +36,8 @@ Edit `.env` with your local PostgreSQL connection:
 
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/hrmind_mailops
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRES_MINUTES=60
 BACKEND_ENV=development
 ```
 
@@ -133,6 +135,17 @@ Open:
 - `GET /api/workspaces/demo`
 - `GET /api/settings/{workspace_id}`
 - `PATCH /api/settings/{workspace_id}`
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `GET /api/workspaces/me`
+- `GET /api/private/settings`
+- `PATCH /api/private/settings`
+- `GET /api/private/email-threads`
+- `GET /api/private/candidates`
+- `GET /api/private/drafts`
+- `GET /api/private/interview-kits`
+- `GET /api/private/rag-sources`
 - `GET /api/email-threads/{workspace_id}`
 - `GET /api/candidates/{workspace_id}`
 - `GET /api/drafts/{workspace_id}`

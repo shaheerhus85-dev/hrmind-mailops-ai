@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class OrmSchema(BaseModel):
@@ -21,6 +21,34 @@ class WorkspaceRead(OrmSchema):
     name: str
     mode: str
     created_at: datetime
+
+
+class UserRead(OrmSchema):
+    id: str
+    email: EmailStr
+    name: str
+    role: str
+    is_verified: bool
+    created_at: datetime
+
+
+class AuthSignup(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=72)
+    name: str | None = Field(default=None, max_length=160)
+
+
+class AuthLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=72)
+
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: UserRead
+    workspace: WorkspaceRead
 
 
 class WorkspaceSettingsRead(OrmSchema):
