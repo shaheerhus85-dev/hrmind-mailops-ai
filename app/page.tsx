@@ -496,7 +496,7 @@ export default function Dashboard() {
           {view==="Candidate Review" && <CandidateView items={visibleCandidates} selected={candidate} onSelect={chooseCandidate} onInterview={openInterviewKit} onDraft={routeDraftForCandidate} onReviewed={markCandidateReviewed}/>}
           {view==="Interview Kits" && <InterviewView items={visibleCandidates} selected={candidate} kit={workspace.interviewKits.find(item=>item.candidateId===candidate.id)} copied={kitCopied} onSelect={chooseCandidate} onCopy={copyKit} onReviewed={markKitReviewed}/>}
           {view==="Reply Drafts" && <DraftsView drafts={workspace.replyDrafts} candidates={workspace.candidates} selected={draftIndex} draft={selectedDraft} variant={draftVariant} body={selectedDraftBody} copied={copied} reviewed={selectedDraft?.reviewStatus==="reviewed"} generationSettings={selectedDraftGeneration} onSelect={chooseDraft} onVariant={setDraftVariant} onBody={editDraftBody} onCopy={copy} onReviewed={markDraftReviewed} onKeep={()=>showToast("Kept as draft")} onRegenerate={regenerateDraftOptions}/>}
-          {view==="Settings" && <SettingsView workspaceMode={workspaceMode} token={privateSession?.accessToken??""} settings={workspace.workspaceSettings} onExit={exitWorkspace}/>}
+          {view==="Settings" && <SettingsView workspaceMode={workspaceMode} workspaceEmail={workspaceEmail} token={privateSession?.accessToken??""} settings={workspace.workspaceSettings} onExit={exitWorkspace}/>}
         </div>
       </section>
     </div>
@@ -938,7 +938,7 @@ function formatFileSize(bytes:number){
   return `${(bytes/(1024*1024)).toFixed(1)} MB`;
 }
 
-function SettingsView({workspaceMode,token,settings,onExit}:{workspaceMode:WorkspaceMode;token:string;settings:WorkspaceSettingsState;onExit:()=>void}) {
+function SettingsView({workspaceMode,workspaceEmail,token,settings,onExit}:{workspaceMode:WorkspaceMode;workspaceEmail:string;token:string;settings:WorkspaceSettingsState;onExit:()=>void}) {
   type SettingsRow = {
     id: string;
     Icon: ElementType;
@@ -1061,12 +1061,12 @@ function SettingsView({workspaceMode,token,settings,onExit}:{workspaceMode:Works
 
   const rows:SettingsRow[]=[
     {id:"workspace",Icon:Building2,title:"Workspace",body:isPrivate?"Private workspace identity and membership.":"Core workspace identity and local demo membership.",details:[["Workspace name",settings.workspaceName],["Workspace ID",settings.workspaceId],["Created",settings.demo?"Demo only":"Private workspace"],["Members","1"]],state:settings.demo?"Demo":"Private",tone:"blue",iconClass:"workspace"},
-    {id:"authentication",Icon:LockKeyhole,title:"Authentication",body:isPrivate?"This private workspace is protected by email/password authentication.":"Public demo access does not require an account.",details:[["Session",isPrivate?"Authenticated":"Public visitor"],["Verification",isPrivate?"Email verification not enabled yet":"Not applicable"],["Auth method",isPrivate?"Email and password":"Demo session"],["2FA status","Not enabled"]],state:isPrivate?"Signed in":"Demo only",tone:isPrivate?"green":"amber",iconClass:"auth",action:{label:isPrivate?"Log out":"Exit demo",onClick:onExit}},
+    {id:"authentication",Icon:LockKeyhole,title:"Authentication",body:isPrivate?"This private workspace is protected by email/password authentication.":"Public demo access does not require an account.",details:[["Identity",isPrivate?workspaceEmail:"Public visitor"],["Session",isPrivate?"Authenticated":"Demo session"],["Auth method",isPrivate?"Email and password":"No account required"],["2FA status","Not enabled"]],state:isPrivate?"Signed in":"Demo only",tone:isPrivate?"green":"amber",iconClass:"auth",action:{label:isPrivate?"Log out":"Exit demo",onClick:onExit}},
     {id:"demo-data",Icon:Inbox,title:isPrivate?"Private Data":"Demo Data",body:isPrivate?"Private data is isolated from the public demo workspace.":"Demo mode is active for public visitors.",details:isPrivate?[["Data source","Private data"],["Current state","Ready for recruiter-controlled data"]]:[["Demo mode","Active"],["Real data","Create a private workspace to use real data."]],state:isPrivate?"Private":"Active",tone:"green",iconClass:"data"},
-    {id:"privacy",Icon:ShieldCheck,title:"Privacy & Guardrails",body:"Recruiter-controlled safeguards apply across every workflow.",state:"Required",tone:"green",iconClass:"privacy",tags:["No automatic sending","No message deletion","Human review required","Draft-only replies"]},
+    {id:"privacy",Icon:ShieldCheck,title:"Privacy & Guardrails",body:"Recruiter-controlled safeguards apply across every workflow.",state:"Required",tone:"green",iconClass:"privacy",tags:["No message deletion","Recruiter-controlled"]},
     {id:"environment",Icon:FileText,title:"Environment",body:"Frontend and backend foundation prepared for deployment.",details:[["Environment",isPrivate?"Private workspace":"Frontend Demo"],["AI","Not enabled yet"],["Email sending","Disabled"]],state:isPrivate?"Private ready":"Demo ready",tone:"blue",iconClass:"environment"},
-    {id:"gmail",Icon:GmailMark,title:"Gmail Readonly Import",body:"Gmail not connected yet. HRMind does not send, delete, relabel, or modify Gmail messages.",state:"Not connected",tone:"amber",iconClass:"gmail",tags:["Readonly only","No automatic email sending","Not connected"],action:{label:"Configure Gmail",onClick:()=>setSettingsModal("gmail")}},
-    {id:"rag",Icon:FileText,title:"Knowledge Base / RAG",body:"RAG indexing is not enabled. Document metadata can remain staged locally for this portfolio demo.",state:localSettings.ragFiles.length?"RAG metadata staged locally":isPrivate?"Local staging only":"Not connected in demo",tone:localSettings.ragFiles.length?"green":"blue",iconClass:"rag",tags:["Local-only metadata","No indexing"],upload:true,action:{label:"Configure RAG sources",onClick:()=>setSettingsModal("rag")}}
+    {id:"gmail",Icon:GmailMark,title:"Gmail Readonly Import",body:"Gmail remains disconnected. Configuration is informational until a recruiter authorizes a readonly import.",state:"Not connected",tone:"amber",iconClass:"gmail",details:[["Status","Not connected"],["Permission","Readonly only"],["Safety","No sending, deleting, relabeling, or mailbox mutation"]],action:{label:"Configure Gmail",onClick:()=>setSettingsModal("gmail")}},
+    {id:"rag",Icon:FileText,title:"Knowledge Base / RAG",body:isPrivate?"Document metadata can be staged locally for this private workspace. Indexing and retrieval remain disabled.":"Document metadata can be staged locally for this demo workspace. Indexing and retrieval remain disabled.",state:localSettings.ragFiles.length?"RAG metadata staged locally":isPrivate?"Not connected / indexed":"Not connected in demo",tone:localSettings.ragFiles.length?"green":"blue",iconClass:"rag",details:[["Accepted types","PDF, DOCX, TXT"],["File limit","20MB each"],["Current status",localSettings.ragFiles.length?`${localSettings.ragFiles.length} staged locally`:"Local metadata only"]],upload:true,action:{label:"Configure RAG sources",onClick:()=>setSettingsModal("rag")}}
   ];
   return <div className="settings-page scroll-list"><section className="settings-list">{rows.map(({id,Icon,title,body,state,tone,iconClass,details,tags,upload,action},index)=>{
     const isDemoRow = id==="demo-data";
@@ -1097,7 +1097,11 @@ function SettingsView({workspaceMode,token,settings,onExit}:{workspaceMode:Works
       </div>
       <div className={clsx("settings-row-controls",isPrivacyRow&&"stacked",isGmailRow&&"integration",isRagRow&&"integration rag")}>
         {isDemoRow?<Status tone="green">{isPrivate?"Private data":"Demo mode active"}</Status>:isPrivacyRow?<div className="guardrail-toggles" aria-label="Privacy and guardrail settings">
-          {([["reviewRequired","Review"],["draftOnly","Draft only"],["noAutoSend","No send"]] as [GuardrailKey,string][]).map(([key,label])=><button type="button" key={key} className={clsx(!localSettings.guardrails[key]&&"off")} aria-pressed={localSettings.guardrails[key]} disabled={!settingsReady} onClick={()=>toggleGuardrail(key)}><i/><span>{label}</span></button>)}
+          {([
+            ["reviewRequired","Review","Human review required","Recruiter approval stays required before hiring actions."],
+            ["draftOnly","Draft only","Draft only","Generated replies remain drafts until copied by a recruiter."],
+            ["noAutoSend","No send","No automatic sending","No message can be sent automatically from this workspace."]
+          ] as [GuardrailKey,string,string,string][]).map(([key,ariaLabel,label,description])=><button type="button" key={key} className={clsx(!localSettings.guardrails[key]&&"off")} aria-label={ariaLabel} aria-pressed={localSettings.guardrails[key]} disabled={!settingsReady} onClick={()=>toggleGuardrail(key)}><span className="guardrail-copy"><strong>{label}</strong><small>{description}</small></span><i/></button>)}
         </div>:<Status tone={tone}>{state}</Status>}
         {action&&<Button secondary disabled={action.disabled} onClick={action.onClick}>{action.label}</Button>}
       </div>
@@ -1116,8 +1120,8 @@ function SettingsView({workspaceMode,token,settings,onExit}:{workspaceMode:Works
         <button type="button" className="modal-close" aria-label="Close settings modal" onClick={()=>setSettingsModal(null)}><X/></button>
       </div>
       <div className="settings-modal-body">
-        {settingsModal==="gmail"?<div className="settings-modal-status"><small>Status</small><Status tone="amber">Not connected in demo</Status></div>:<>
-          <div className="settings-modal-facts"><div><small>Accepted file types</small><strong>PDF, DOCX, TXT</strong></div><div><small>Current staged files</small><strong>{localSettings.ragFiles.length}</strong></div></div>
+        {settingsModal==="gmail"?<div className="settings-modal-status"><small>Status</small><Status tone="amber">Not connected</Status></div>:<>
+          <div className="settings-modal-facts"><div><small>Accepted file types</small><strong>PDF, DOCX, TXT</strong></div><div><small>Maximum file size</small><strong>20MB each</strong></div><div><small>Current staged files</small><strong>{localSettings.ragFiles.length}</strong></div></div>
           <p className="settings-modal-note">Files remain local metadata only. No document indexing or retrieval is active.</p>
         </>}
       </div>

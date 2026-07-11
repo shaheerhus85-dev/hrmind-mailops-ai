@@ -2,6 +2,7 @@ import { chromium } from "playwright-core";
 import { mkdir } from "node:fs/promises";
 
 await mkdir("artifacts/phase-8b2-review", { recursive: true });
+await mkdir("artifacts/phase-8b3-review", { recursive: true });
 
 const browser = await chromium.launch({
   executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
@@ -49,6 +50,7 @@ await page.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeou
 await page.waitForTimeout(3000);
 await page.locator(".overview-layout").waitFor({ state: "visible" });
 await page.screenshot({ path: "artifacts/dashboard-overview-top.png", fullPage: false });
+await page.screenshot({ path: "artifacts/phase-8b3-review/final-dashboard.png", fullPage: false });
 await page.locator(".left-rail").screenshot({ path: "artifacts/dashboard-sidebar.png" });
 
 const overviewMetrics = await page.evaluate(() => ({
@@ -141,12 +143,14 @@ const draftMetrics = await page.evaluate(() => ({
 await page.getByRole("button", { name: /close regenerate modal/i }).click();
 await page.locator(".rail-settings").click();
 await page.locator(".settings-page").waitFor({ state: "visible" });
+await page.waitForTimeout(2200);
 await page.locator(".settings-page").evaluate(element => {
   element.scrollTop = 0;
 });
 await page.waitForTimeout(150);
 await page.screenshot({ path: "artifacts/settings.png", fullPage: false });
 await page.screenshot({ path: "artifacts/settings-top-1366x768.png", fullPage: false });
+await page.screenshot({ path: "artifacts/phase-8b3-review/demo-settings-top.png", fullPage: false });
 
 const settingsMetrics = await page.evaluate(() => {
   const scroller = document.querySelector(".settings-page");
@@ -169,6 +173,7 @@ await page.setViewportSize({ width: 1366, height: 768 });
 await page.waitForTimeout(150);
 await page.screenshot({ type: "png", fullPage: false });
 await page.screenshot({ path: "artifacts/settings-bottom-1366x768.png", fullPage: false });
+await page.screenshot({ path: "artifacts/phase-8b3-review/demo-settings-bottom.png", fullPage: false });
 
 const settingsFunctionalChecks = {};
 for (const label of ["Review", "Draft only", "No send"]) {
@@ -186,7 +191,7 @@ settingsFunctionalChecks.noDemoToggle = await page.getByRole("button", { name: /
 await page.getByRole("button", { name: "Configure Gmail", exact: true }).click();
 const gmailDialog = page.getByRole("dialog", { name: "Gmail readonly import" });
 await gmailDialog.waitFor({ state: "visible" });
-settingsFunctionalChecks.gmailModal = await gmailDialog.getByText("Not connected in demo").isVisible();
+settingsFunctionalChecks.gmailModal = await gmailDialog.getByText("Not connected", { exact: true }).isVisible();
 await gmailDialog.getByRole("button", { name: "Close", exact: true }).click();
 
 await page.getByRole("button", { name: "Configure RAG sources", exact: true }).click();
@@ -238,6 +243,7 @@ await page.setViewportSize({ width: 1366, height: 768 });
 await page.waitForTimeout(150);
 await page.screenshot({ type: "png", fullPage: false });
 await page.screenshot({ path: "artifacts/settings-rag-staged-1366x768.png", fullPage: false });
+await page.screenshot({ path: "artifacts/phase-8b3-review/rag-staged-file.png", fullPage: false });
 
 await page.getByRole("button", { name: "Reset demo settings", exact: true }).click();
 await page.waitForTimeout(50);
@@ -274,13 +280,18 @@ if (process.env.QA_PRIVATE_CAPTURE === "1") {
   await privatePage.emulateMedia({ reducedMotion: "reduce" });
   const privateUser = { id: "user_private_qa", email: "private@example.com", name: "Private Recruiter", role: "owner", is_verified: true, created_at: new Date().toISOString() };
   const privateWorkspace = { id: "workspace_private_qa", owner_user_id: privateUser.id, name: "Private workspace", mode: "private", created_at: new Date().toISOString() };
+  let privateSettings = { demo_mode: false, human_review_required: true, draft_only: true, no_auto_send: true, no_message_deletion: true };
   await privatePage.addInitScript(({ user, workspace }) => {
     localStorage.removeItem("hrmind:demo-session:v1");
     localStorage.setItem("hrmind:private-session:v1", JSON.stringify({ accessToken: "qa-private-token", expiresAt: Date.now() + 3_600_000, user, workspace }));
   }, { user: privateUser, workspace: privateWorkspace });
   await privatePage.route("**/api/**", async route => {
     const pathname = new URL(route.request().url()).pathname;
-    const body = pathname.endsWith("/auth/me") ? privateUser : pathname.endsWith("/workspaces/me") ? privateWorkspace : [];
+    let body = pathname.endsWith("/auth/me") ? privateUser : pathname.endsWith("/workspaces/me") ? privateWorkspace : [];
+    if (pathname.endsWith("/private/settings")) {
+      if (route.request().method() === "PATCH") privateSettings = { ...privateSettings, ...route.request().postDataJSON() };
+      body = privateSettings;
+    }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
   await privatePage.goto("http://localhost:3000", { waitUntil: "networkidle", timeout: 60_000 });
@@ -293,6 +304,20 @@ if (process.env.QA_PRIVATE_CAPTURE === "1") {
   await privatePage.getByText("No reply drafts yet", { exact: true }).waitFor({ state: "visible" });
   await privatePage.screenshot({ path: "artifacts/phase-8b2-review/private-draft-empty.png", fullPage: false });
   workflowFunctionalChecks.privateDraftEmpty = await privatePage.getByText("Reviewed draft options will appear here.", { exact: true }).isVisible();
+  await privatePage.locator(".rail-settings").click();
+  await privatePage.locator(".settings-page").waitFor({ state: "visible" });
+  await privatePage.getByText("private@example.com", { exact: true }).waitFor({ state: "visible" });
+  await privatePage.screenshot({ path: "artifacts/phase-8b3-review/private-settings.png", fullPage: false });
+  settingsFunctionalChecks.privateIdentity = await privatePage.getByText("Private workspace", { exact: true }).first().isVisible() && await privatePage.getByText("private@example.com", { exact: true }).isVisible();
+  settingsFunctionalChecks.privateDisconnectedStates = await privatePage.getByText("Not connected / indexed", { exact: true }).isVisible() && await privatePage.getByText("Readonly only", { exact: true }).isVisible();
+  await privatePage.getByRole("button", { name: "No send", exact: true }).click();
+  await privatePage.waitForFunction(() => document.querySelector('button[aria-label="No send"]')?.getAttribute("aria-pressed") === "false");
+  await privatePage.reload({ waitUntil: "networkidle" });
+  await privatePage.locator(".overview-layout").waitFor({ state: "visible" });
+  await privatePage.locator(".rail-settings").click();
+  await privatePage.locator(".settings-page").waitFor({ state: "visible" });
+  settingsFunctionalChecks.privateGuardrailPersistence = await privatePage.getByRole("button", { name: "No send", exact: true }).getAttribute("aria-pressed") === "false";
+  settingsFunctionalChecks.demoPrivateSeparation = await privatePage.evaluate(() => localStorage.getItem("hrmind:settings:v1") === null);
   await privatePage.close();
 }
 
