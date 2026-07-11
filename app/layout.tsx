@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import "@fontsource-variable/inter";
+import "@fontsource-variable/manrope";
 import "./globals.css";
+import "./phase8a.css";
 
 export const metadata: Metadata = {
   title: "HRMind MailOps AI",

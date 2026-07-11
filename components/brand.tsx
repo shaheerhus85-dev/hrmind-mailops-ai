@@ -14,13 +14,14 @@ export function BrandMark({ className, title = "HRMind" }: BrandMarkProps) {
   return (
     <svg
       className={clsx("brand-mark", className)}
-      viewBox="0 0 64 64"
+      viewBox="0 0 48 48"
       role="img"
       aria-label={title}
     >
-      <rect x="4" y="4" width="56" height="56" rx="15" fill="#0878D1" />
-      <path d="M18 17v30M46 17v30M18 32h28" fill="none" stroke="#FFFFFF" strokeWidth="7" strokeLinecap="round" />
-      <circle cx="51" cy="51" r="5" fill="#73D9F4" stroke="#0878D1" strokeWidth="2" />
+      <path className="brand-mark-shell" d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" />
+      <path className="brand-mark-core" d="M14.5 17.5h19v13h-19Z" />
+      <path className="brand-mark-route" d="m15 18 9 7 9-7M24 25v5" />
+      <circle className="brand-mark-node accent" cx="24" cy="30" r="2.4" />
     </svg>
   );
 }

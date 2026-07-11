@@ -570,8 +570,8 @@ function TopNav({menu,query,workflow,workspaceMode,workspaceEmail,workspaceDataS
 
 function LeftRail({view,onView}:{view:View;onView:(v:View)=>void}) {
   const items:[string,View,ElementType][]=[["Dashboard","Overview",Inbox],["Inbox","Inbox Triage",Mail],["Candidates","Candidate Review",UserCheck],["Interviews","Interview Kits",CalendarDays],["Drafts","Reply Drafts",Send]];
-  return <aside className="left-rail"><button className="sidebar-logo" aria-label="Open HRMind dashboard" onClick={()=>onView("Overview")}><LogoLockup compact inverse/></button><div className="rail-navigation">{items.map(([label,target,Icon])=><button title={label} aria-label={label} className={clsx(view===target&&"active")} key={label} onClick={()=>onView(target)}><Icon/><span>{label}</span>{label==="Inbox"&&<i>21</i>}</button>)}</div>
-    <div className="rail-footer"><button className={clsx("rail-settings",view==="Settings"&&"active")} onClick={()=>onView("Settings")}><Settings/><span>Settings</span></button><div className="rail-safety" title="Human review required"><ShieldCheck/><span>Safe Mode</span></div></div>
+  return <aside className="left-rail"><button className="sidebar-logo" aria-label="Open HRMind dashboard" onClick={()=>onView("Overview")}><LogoLockup compact inverse/></button><span className="rail-navigation-label">Workspace</span><div className="rail-navigation">{items.map(([label,target,Icon])=><button title={label} aria-label={label} className={clsx(view===target&&"active")} key={label} onClick={()=>onView(target)}><Icon/><span>{label}</span>{label==="Inbox"&&<i>21</i>}</button>)}</div>
+    <div className="rail-footer"><button className={clsx("rail-settings",view==="Settings"&&"active")} onClick={()=>onView("Settings")}><Settings/><span>Settings</span></button><div className="rail-safety" title="Human review required"><i/><ShieldCheck/><span><strong>Safe Mode</strong><small>Human review on</small></span></div></div>
   </aside>
 }
 
@@ -591,24 +591,51 @@ function ViewTabs({view,onView}:{view:View;onView:(v:View)=>void}){return <div c
 function Overview({state,onReview,onInbox,onDraft}:{state:WorkspaceState;onReview:()=>void;onInbox:()=>void;onDraft:()=>void}){
   const metrics=state.dashboardMetrics;
   const totalTriage=Object.values(metrics.triage).reduce((sum,value)=>sum+value,0);
+  const activity=[
+    {label:"Signals",value:metrics.hiringSignals,tone:"cyan"},
+    {label:"Applications",value:metrics.cvApplications,tone:"blue"},
+    {label:"Drafts",value:metrics.replyDrafts,tone:"teal"},
+    {label:"Review",value:metrics.humanReview,tone:"amber"}
+  ];
+  const activityMax=Math.max(1,...activity.map(item=>item.value));
+  const highEnd=totalTriage?(metrics.triage.highPriority/totalTriage)*100:0;
+  const reviewEnd=totalTriage?highEnd+(metrics.triage.needsReview/totalTriage)*100:0;
+  const fyiEnd=totalTriage?reviewEnd+(metrics.triage.fyi/totalTriage)*100:0;
+  const workflowChart=totalTriage
+    ? `conic-gradient(#e9b949 0 ${highEnd}%, #178be5 ${highEnd}% ${reviewEnd}%, #19c9d7 ${reviewEnd}% ${fyiEnd}%, #20c4ad ${fyiEnd}% 100%)`
+    : "rgba(104, 128, 142, .18)";
+  const kpis:{label:string;value:number;meta:string;Icon:ElementType;tone:string}[]=[
+    {label:"Hiring Signals",value:metrics.hiringSignals,meta:metrics.hiringSignals?"Active workflow signals":"No signals yet",Icon:Inbox,tone:"cyan"},
+    {label:"CV Applications",value:metrics.cvApplications,meta:`${state.candidates.length} profiles in review`,Icon:FileText,tone:"blue"},
+    {label:"Reply Drafts",value:metrics.replyDrafts,meta:`${metrics.priorityDrafts} awaiting approval`,Icon:Send,tone:"teal"},
+    {label:"Human Review",value:metrics.humanReview,meta:`${metrics.triage.highPriority} high priority`,Icon:ShieldCheck,tone:"amber"}
+  ];
   return <div className="overview-layout">
-  <section className="dashboard-hero"><div className="hero-copy"><h1>Hello Recruiter</h1><p>Your hiring inbox, organized and optimized by AI.</p><small>Focus on people, not processing.</small></div><div className="hero-buttons"><Button onClick={onInbox}>Review Inbox</Button><Button secondary onClick={onDraft}>View Drafts</Button></div><div className="hero-orb hero-orb-one"/><div className="hero-orb hero-orb-two"/></section>
-  <section className="overview-stats">{[
-    ["Hiring Signals",String(metrics.hiringSignals),"+12% vs yesterday",Inbox,"green"],
-    ["CV Applications",String(metrics.cvApplications),"+8% vs yesterday",FileText,"blue"],
-    ["Reply Drafts",String(metrics.replyDrafts),metrics.replyDrafts===58?"+15% vs yesterday":"Updated from reviews",Send,"amber"],
-    ["Human Review",String(metrics.humanReview),metrics.humanReview===21?"-5% vs yesterday":"Updated from reviews",ShieldCheck,"red"]
-  ].map(([title,value,meta,Icon,tone])=><article className="overview-stat panel" key={String(title)}><span className={clsx("stat-icon",tone)}><Icon/></span><div><h2>{title as string}</h2><strong>{value as string}</strong><small className={clsx("stat-meta",String(meta).startsWith("-")&&"down")}>{meta as string}</small></div></article>)}</section>
-  <section className="priority-section panel"><div className="priority-heading"><div><span className="priority-title-icon"><Sparkles/></span><h2>Today’s Priority Work</h2></div><button className="card-link" onClick={onInbox}>View all <ArrowUpRight/></button></div><div className="priority-grid">
-    <button className="priority-card red" onClick={onInbox}><span><ShieldCheck/></span><div><h3>Review high-priority messages</h3><p>{metrics.humanReview} messages need your attention</p><small>Start review</small></div><ArrowUpRight/></button>
-    <button className="priority-card blue" onClick={onReview}><span><UserCheck/></span><div><h3>Screen top candidates</h3><p>{metrics.priorityCandidates} candidates ready for review</p><small>Review now</small></div><ArrowUpRight/></button>
-    <button className="priority-card amber" onClick={onDraft}><span><Send/></span><div><h3>Approve reply drafts</h3><p>{metrics.priorityDrafts} drafts waiting for your approval</p><small>View drafts</small></div><ArrowUpRight/></button>
-  </div></section>
-  <div className="dashboard-main">
-    <section className="triage-summary panel"><PanelTitle eyebrow="Status breakdown" title="Inbox Triage"><button className="card-link" onClick={onInbox}>View inbox <ArrowUpRight/></button></PanelTitle><div className="triage-summary-body"><div className="triage-donut"><div><strong>{totalTriage}</strong><small>Total</small></div></div><div className="triage-legend">{[["High Priority",metrics.triage.highPriority,"high"],["Needs Review",metrics.triage.needsReview,"review"],["FYI",metrics.triage.fyi,"fyi"],["Automated / Done",metrics.triage.done,"done"]].map(([label,value,tone])=><p key={String(label)}><i className={String(tone)}/><span>{label}</span><strong>{value}</strong></p>)}</div></div></section>
-    <section className="dashboard-candidates panel"><PanelTitle eyebrow="Decision queue" title="Candidate Review"><button className="card-link" onClick={onReview}>View all candidates <ArrowUpRight/></button></PanelTitle><div className="overview-candidate-table"><div className="overview-candidate-head"><span>Candidate</span><span>Role</span><span>Source / Workflow</span><span>Match</span><span>Status</span><span>Action</span></div>{state.candidates.slice(0,4).map((item,index)=><article key={item.id}><span className="person"><Avatar name={item.name}/><strong>{item.name}</strong></span><span>{item.role}</span><span>{item.source}</span><b>{item.score}%</b><Status tone={item.reviewStatus==="reviewed"?"green":item.reviewStatus==="analyzed"?"blue":"amber"}>{item.reviewStatus==="reviewed"?"Reviewed":item.reviewStatus==="analyzed"?"Analyzed":index===0?"Shortlisted":"Needs Review"}</Status><button onClick={onReview}>Review</button></article>)}{state.candidates.length===0&&<EmptyResults label="No candidates in this workspace yet."/>}</div></section>
-  </div>
-  <div className="dashboard-bottom"><Pipeline total={metrics.totalCandidates} onView={onReview}/><section className="quick-queue panel"><PanelTitle eyebrow="Today’s schedule" title="Interview & Draft Queue"><button className="card-link" onClick={onDraft}>View all <ArrowUpRight/></button></PanelTitle><div className="queue-timeline">{metrics.queue.map(item=><p key={`${item.time}-${item.title}`}><span className="queue-time">{item.time}</span><i/><span><strong>{item.title}</strong><small>{item.meta}</small></span><Status tone={item.status==="Reviewed"?"green":item.status==="Ready"?"blue":"amber"}>{item.status}</Status></p>)}{metrics.queue.length===0&&<EmptyResults label="No interviews or drafts scheduled yet."/>}</div></section></div>
+    <header className="dashboard-heading">
+      <div><span>Recruiter operations</span><h1>Dashboard</h1><p>Monitor hiring signals, review queues, and recruiter-controlled actions.</p></div>
+      <div className="dashboard-heading-actions"><span className="dashboard-snapshot"><CalendarDays/><span><small>Current snapshot</small><strong>{state.workspaceSettings.demo?"Demo workspace":"Private workspace"}</strong></span></span><Button onClick={onInbox}>Review inbox <ArrowUpRight/></Button></div>
+    </header>
+    <section className="overview-stats">{kpis.map(({label,value,meta,Icon,tone})=><article className="overview-stat panel" key={label}><div><h2>{label}</h2><strong>{value}</strong><small>{meta}</small></div><span className={clsx("stat-icon",tone)}><Icon/></span></article>)}</section>
+    <div className="dashboard-analytics">
+      <section className="activity-panel panel">
+        <header className="dashboard-panel-head"><div><h2>Hiring activity</h2><span>Current workspace volume</span></div><button type="button"><SlidersHorizontal/> Current data</button></header>
+        <div className="activity-chart"><div className="activity-grid" aria-hidden="true"><i/><i/><i/><i/></div><div className="activity-bars">{activity.map(item=><div className="activity-bar-group" key={item.label}><span><i className={item.tone} style={{height:item.value?`${Math.max(10,Math.round(item.value/activityMax*100))}%`:"3px"}}/><b>{item.value}</b></span><small>{item.label}</small></div>)}</div>{activity.every(item=>item.value===0)&&<p className="activity-empty-copy">Activity will appear when workspace data is added.</p>}</div>
+      </section>
+      <section className="workflow-panel panel">
+        <header className="dashboard-panel-head"><div><h2>Workflow status</h2><span>Inbox and review states</span></div><button className="card-link" onClick={onInbox}>Open inbox <ArrowUpRight/></button></header>
+        <div className="workflow-status-body"><div className="workflow-donut" style={{background:workflowChart}}><span><strong>{totalTriage}</strong><small>Total items</small></span></div><div className="workflow-legend">{[["High priority",metrics.triage.highPriority,"high"],["Needs review",metrics.triage.needsReview,"review"],["FYI",metrics.triage.fyi,"fyi"],["Completed",metrics.triage.done,"done"]].map(([label,value,tone])=><p key={String(label)}><i className={String(tone)}/><span>{label}</span><strong>{value}</strong></p>)}</div></div>
+      </section>
+    </div>
+    <div className="dashboard-data-row">
+      <section className="top-candidates panel">
+        <header className="dashboard-panel-head"><div><h2>Top candidates</h2><span>Highest current match scores</span></div><button className="card-link" onClick={onReview}>View all <ArrowUpRight/></button></header>
+        <div className={clsx("top-candidate-table",state.candidates.length===0&&"empty")}><div className="top-candidate-head"><span>Candidate</span><span>Match</span><span>Status</span><span/></div>{state.candidates.slice(0,4).map((item,index)=><article key={item.id}><span className="person"><Avatar name={item.name}/><span><strong>{item.name}</strong><small>{item.role} · {item.source}</small></span></span><b>{item.score}%</b><Status tone={item.reviewStatus==="reviewed"?"green":item.reviewStatus==="analyzed"?"blue":"amber"}>{item.reviewStatus==="reviewed"?"Reviewed":item.reviewStatus==="analyzed"?"Analyzed":index===0?"Shortlist":"Review"}</Status><button onClick={onReview} aria-label={`Review ${item.name}`}><ArrowUpRight/></button></article>)}{state.candidates.length===0&&<div className="dashboard-empty"><span><UserCheck/></span><strong>No candidates yet</strong><p>Candidate records will appear after data is imported.</p></div>}</div>
+      </section>
+      <section className="recent-operations panel">
+        <header className="dashboard-panel-head"><div><h2>Recent operations</h2><span>Interview and draft queue</span></div><button className="card-link" onClick={onDraft}>View drafts <ArrowUpRight/></button></header>
+        <div className={clsx("operation-list",metrics.queue.length===0&&"empty")}>{metrics.queue.slice(0,4).map((item,index)=><article key={`${item.time}-${item.title}`}><span className={clsx("operation-icon",index%2?"draft":"interview")}>{index%2?<Send/>:<CalendarDays/>}</span><span><strong>{item.title}</strong><small>{item.time} · {item.meta}</small></span><Status tone={item.status==="Reviewed"?"green":item.status==="Ready"?"blue":"amber"}>{item.status}</Status></article>)}{metrics.queue.length===0&&<div className="dashboard-empty"><span><CalendarDays/></span><strong>No recent operations</strong><p>Interview and draft activity will appear here.</p></div>}</div>
+      </section>
+    </div>
 </div>}
 
 function InboxView({items,selected,reviewed,query,onQuery,onSelect,onAnalyze,onDraft,onReviewed,onKeep}:{items:EmailItem[];selected:EmailItem;reviewed:number[];query:string;onQuery:(s:string)=>void;onSelect:(e:EmailItem)=>void;onAnalyze:()=>void;onDraft:()=>void;onReviewed:()=>void;onKeep:()=>void}){
