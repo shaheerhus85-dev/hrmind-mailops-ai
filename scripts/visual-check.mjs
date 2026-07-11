@@ -1,4 +1,7 @@
 import { chromium } from "playwright-core";
+import { mkdir } from "node:fs/promises";
+
+await mkdir("artifacts/phase-8b2-review", { recursive: true });
 
 const browser = await chromium.launch({
   executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
@@ -7,6 +10,7 @@ const browser = await chromium.launch({
 });
 
 const authPage = await browser.newPage({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 });
+await authPage.route("**/api/**", route => route.abort());
 await authPage.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 60_000 });
 await authPage.locator(".auth-shell").waitFor({ state: "visible" });
 const publicDemoChecks = {
@@ -33,6 +37,7 @@ await iconPage.screenshot({ path: "artifacts/app-icon.png", fullPage: false, omi
 await iconPage.close();
 
 const page = await browser.newPage({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 });
+await page.route("**/api/**", route => route.abort());
 await page.emulateMedia({ reducedMotion: "reduce" });
 await page.addInitScript(() => window.localStorage.setItem("hrmind:demo-session:v1", "true"));
 const consoleErrors = [];
@@ -78,20 +83,58 @@ await page.getByRole("button", { name: "Interviews", exact: true }).click();
 await page.locator(".kit-view").waitFor({ state: "visible" });
 await page.waitForTimeout(400);
 await page.screenshot({ path: "artifacts/interview-kits.png", fullPage: false });
+await page.screenshot({ path: "artifacts/phase-8b2-review/interview-kits.png", fullPage: false });
+
+const workflowFunctionalChecks = {};
+await page.locator(".kit-list .person-row").nth(1).click();
+workflowFunctionalChecks.interviewSelection = await page.locator(".kit-content .content-head").getByText("Omar Siddiqui", { exact: true }).isVisible();
+await page.locator(".kit-list .person-row").first().click();
+workflowFunctionalChecks.singleKitCopyAction = await page.getByRole("button", { name: /copy kit/i }).count() === 1;
+await page.getByRole("button", { name: /copy kit/i }).click();
+await page.getByText("Interview kit copied", { exact: true }).waitFor({ state: "visible" });
+workflowFunctionalChecks.copyKit = true;
+await page.locator(".kit-content").getByRole("button", { name: /mark reviewed/i }).click();
+await page.getByText("Marked reviewed", { exact: true }).waitFor({ state: "visible" });
+workflowFunctionalChecks.reviewKit = true;
 
 await page.getByRole("button", { name: "Drafts", exact: true }).click();
 await page.locator(".draft-view").waitFor({ state: "visible" });
 await page.waitForTimeout(400);
 await page.screenshot({ path: "artifacts/reply-drafts.png", fullPage: false });
+await page.screenshot({ path: "artifacts/phase-8b2-review/reply-drafts.png", fullPage: false });
+await page.locator(".draft-list .draft-row").nth(1).click();
+workflowFunctionalChecks.draftSelection = await page.locator(".draft-editor .content-head").getByText("Additional information request", { exact: true }).isVisible();
+await page.locator(".draft-list .draft-row").first().click();
+await page.getByRole("button", { name: /warm detailed/i }).click();
+workflowFunctionalChecks.variantSwitching = await page.getByRole("button", { name: /warm detailed/i }).evaluate(element => element.classList.contains("active"));
+workflowFunctionalChecks.singleDraftCopyAction = await page.getByRole("button", { name: /copy selected draft/i }).count() === 1;
+await page.locator(".draft-editor").getByRole("button", { name: /copy selected draft/i }).click();
+await page.getByText("Draft copied", { exact: true }).waitFor({ state: "visible" });
+workflowFunctionalChecks.copyDraft = true;
+await page.getByRole("button", { name: "Edit manually", exact: true }).click();
+workflowFunctionalChecks.editDraft = await page.getByRole("textbox", { name: "Edit selected draft" }).isVisible();
+await page.getByRole("button", { name: "Done editing", exact: true }).click();
+await page.getByRole("button", { name: "Keep as draft", exact: true }).click();
+await page.getByText("Kept as draft", { exact: true }).waitFor({ state: "visible" });
+workflowFunctionalChecks.keepDraft = true;
 await page.getByRole("button", { name: /policy grounded/i }).click();
 await page.getByRole("button", { name: /regenerate options/i }).first().click();
 await page.locator(".regenerate-modal").waitFor({ state: "visible" });
 await page.screenshot({ path: "artifacts/regenerate-modal.png", fullPage: false });
+workflowFunctionalChecks.regenerateModal = true;
+
+workflowFunctionalChecks.noClippedWorkflowButtons = await page.evaluate(() =>
+  [...document.querySelectorAll(".kit-actions .button, .status-panel-footer .button, .draft-editor .action-bar .button")].every(button => {
+    const buttonRect = button.getBoundingClientRect();
+    const panelRect = button.closest(".panel")?.getBoundingClientRect();
+    return panelRect && buttonRect.left >= panelRect.left && buttonRect.right <= panelRect.right && buttonRect.top >= panelRect.top && buttonRect.bottom <= panelRect.bottom;
+  })
+);
 
 const draftMetrics = await page.evaluate(() => ({
   documentWidth: document.documentElement.scrollWidth,
   documentHeight: document.documentElement.scrollHeight,
-  draftPanelCount: document.querySelectorAll(".draft-list, .draft-editor, .intelligence-panel").length,
+  draftPanelCount: document.querySelectorAll(".draft-list, .draft-editor, .draft-review-panel").length,
   modalVisible: Boolean(document.querySelector(".regenerate-modal"))
 }));
 
@@ -226,6 +269,33 @@ for (const viewport of [{ width: 1024, height: 768 }, { width: 768, height: 900 
   })));
 }
 
+if (process.env.QA_PRIVATE_CAPTURE === "1") {
+  const privatePage = await browser.newPage({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 });
+  await privatePage.emulateMedia({ reducedMotion: "reduce" });
+  const privateUser = { id: "user_private_qa", email: "private@example.com", name: "Private Recruiter", role: "owner", is_verified: true, created_at: new Date().toISOString() };
+  const privateWorkspace = { id: "workspace_private_qa", owner_user_id: privateUser.id, name: "Private workspace", mode: "private", created_at: new Date().toISOString() };
+  await privatePage.addInitScript(({ user, workspace }) => {
+    localStorage.removeItem("hrmind:demo-session:v1");
+    localStorage.setItem("hrmind:private-session:v1", JSON.stringify({ accessToken: "qa-private-token", expiresAt: Date.now() + 3_600_000, user, workspace }));
+  }, { user: privateUser, workspace: privateWorkspace });
+  await privatePage.route("**/api/**", async route => {
+    const pathname = new URL(route.request().url()).pathname;
+    const body = pathname.endsWith("/auth/me") ? privateUser : pathname.endsWith("/workspaces/me") ? privateWorkspace : [];
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+  await privatePage.goto("http://localhost:3000", { waitUntil: "networkidle", timeout: 60_000 });
+  await privatePage.locator(".overview-layout").waitFor({ state: "visible" });
+  await privatePage.getByRole("button", { name: "Interviews", exact: true }).click();
+  await privatePage.getByText("No interview kits yet", { exact: true }).waitFor({ state: "visible" });
+  await privatePage.screenshot({ path: "artifacts/phase-8b2-review/private-interview-empty.png", fullPage: false });
+  workflowFunctionalChecks.privateInterviewEmpty = await privatePage.getByText("Interview kits will appear after candidate review.", { exact: true }).isVisible();
+  await privatePage.getByRole("button", { name: "Drafts", exact: true }).click();
+  await privatePage.getByText("No reply drafts yet", { exact: true }).waitFor({ state: "visible" });
+  await privatePage.screenshot({ path: "artifacts/phase-8b2-review/private-draft-empty.png", fullPage: false });
+  workflowFunctionalChecks.privateDraftEmpty = await privatePage.getByText("Reviewed draft options will appear here.", { exact: true }).isVisible();
+  await privatePage.close();
+}
+
 await browser.close();
 
-console.log(JSON.stringify({ publicDemoChecks, overviewMetrics, draftMetrics, settingsMetrics, settingsFunctionalChecks, viewportChecks, consoleErrors }, null, 2));
+console.log(JSON.stringify({ publicDemoChecks, overviewMetrics, draftMetrics, workflowFunctionalChecks, settingsMetrics, settingsFunctionalChecks, viewportChecks, consoleErrors }, null, 2));

@@ -294,7 +294,6 @@ export default function Dashboard() {
   const selectedDraftVariant = selectedDraft?.variants[draftVariant] ?? null;
   const selectedDraftGeneration = selectedDraft?.generationSettings ?? regenerateDefaults;
   const reviewedThreadIds = workspace.inboxThreads.filter(item=>item.status==="reviewed").map(item=>item.id);
-  const hasContextData = view==="Inbox Triage" ? workspace.inboxThreads.length>0 : view==="Candidate Review"||view==="Interview Kits" ? workspace.candidates.length>0 : view==="Reply Drafts" ? workspace.replyDrafts.length>0 : true;
   const workflowMatch = (value:string) => workflow==="All workflows" || value.toLowerCase().includes(workflow.toLowerCase());
   const visibleEmails = useMemo(()=>workspace.inboxThreads.filter(x=>[x.sender,x.subject,x.category].join(" ").toLowerCase().includes(query.toLowerCase())&&workflowMatch(x.category)),[query,workflow,workspace.inboxThreads]);
   const visibleCandidates = useMemo(()=>workspace.candidates.filter(x=>[x.name,x.role,x.source,x.status,...x.skills].join(" ").toLowerCase().includes(query.toLowerCase())&&workflowMatch(x.source)),[query,workflow,workspace.candidates]);
@@ -500,7 +499,6 @@ export default function Dashboard() {
           {view==="Settings" && <SettingsView workspaceMode={workspaceMode} token={privateSession?.accessToken??""} settings={workspace.workspaceSettings} onExit={exitWorkspace}/>}
         </div>
       </section>
-      {(view==="Interview Kits"||view==="Reply Drafts")&&(hasContextData?<ContextIntelligence view={view} candidate={candidate} email={email} draft={selectedDraft} variant={draftVariant} reviewed={view==="Interview Kits"?workspace.interviewKits.find(item=>item.candidateId===candidate.id)?.status==="reviewed":selectedDraft?.reviewStatus==="reviewed"} kitCopied={kitCopied} draftCopied={copied} draftBody={selectedDraftBody} generationSettings={selectedDraftGeneration} onAnalyze={analyzeCandidate} onInterview={openInterviewKit} onDraft={routeDraftForCandidate} onCopyKit={copyKit} onCopyDraft={copy} onReviewed={view==="Interview Kits"?markKitReviewed:markDraftReviewed} onKeep={()=>showToast("Kept as draft")}/>:<ContextEmpty/>)}
     </div>
     </div>
   </div>{toast&&<Toast message={toast}/>}</div></main>;
@@ -689,8 +687,13 @@ function CandidateView({items,selected,onSelect,onInterview,onDraft,onReviewed}:
 
 function InterviewView({items,selected,kit,copied,onSelect,onCopy,onReviewed}:{items:Candidate[];selected:Candidate;kit?:InterviewKit;copied:boolean;onSelect:(c:Candidate)=>void;onCopy:()=>void;onReviewed:()=>void}) {
   const groups=kit?.sections??defaultInterviewSections;
-  if(items.length===0) return <WorkspaceEmpty icon={CalendarDays} title="No interview kits yet" body="Private workspaces start empty. Interview kits will appear after candidate review."/>;
-  return <div className="kit-view"><aside className="kit-list panel"><ListHeading icon={CalendarDays} title="Interview kits" sub={`${items.length} ready for review`}/><div className="scroll-list">{items.map(c=><button className={clsx("person-row",selected.id===c.id&&"active")} key={c.id} onClick={()=>onSelect(c)}><Avatar name={c.name}/><span><strong>{c.name}</strong><small>{c.role}</small></span></button>)}</div></aside><section className="kit-content panel"><div className="content-head"><div><Status tone={kit?.status==="reviewed"?"blue":"green"}>{kit?.status==="reviewed"?"Reviewed":"Ready for review"}</Status><h2>{selected.name}</h2><p>{selected.role} · generated interview kit</p></div><div className="kit-actions"><Button secondary onClick={onCopy}><Clipboard/> {copied?"Copied":"Copy kit"}</Button><Button quiet onClick={onReviewed}>Mark reviewed</Button></div></div><div className="question-grid scroll-list">{groups.map((group,i)=><article className={`question q${i}`} key={group.title}><span className="question-index">{String(i+1).padStart(2,"0")}</span><strong>{group.title}</strong><ol>{group.questions.map(question=><li key={question}>{question}</li>)}</ol></article>)}</div></section></div>
+  const reviewed=kit?.status==="reviewed";
+  if(items.length===0) return <WorkspaceEmpty icon={CalendarDays} title="No interview kits yet" body="Interview kits will appear after candidate review."/>;
+  return <div className="kit-view interview-kit-grid">
+    <aside className="kit-list panel"><ListHeading icon={CalendarDays} title="Interview kits" sub={`${items.length} ready for review`}/><div className="scroll-list">{items.map(c=><button className={clsx("person-row",selected.id===c.id&&"active")} key={c.id} onClick={()=>onSelect(c)}><Avatar name={c.name}/><span><strong>{c.name}</strong><small>{c.role}</small></span></button>)}</div></aside>
+    <section className="kit-content panel"><div className="content-head"><div><Status tone={reviewed?"blue":"green"}>{reviewed?"Reviewed":"Ready for review"}</Status><h2>{selected.name}</h2><p>{selected.role} · generated interview kit</p></div><div className="kit-actions"><Button secondary onClick={onCopy}><Clipboard/> {copied?"Copied":"Copy kit"}</Button><Button quiet onClick={onReviewed}><CheckCircle2/> {reviewed?"Reviewed":"Mark reviewed"}</Button></div></div><div className="question-grid scroll-list">{groups.map((group,i)=><article className={`question q${i}`} key={group.title}><span className="question-index">{String(i+1).padStart(2,"0")}</span><strong>{group.title}</strong><ol>{group.questions.map(question=><li key={question}>{question}</li>)}</ol></article>)}</div></section>
+    <aside className="kit-status-panel panel"><div className="status-panel-scroll"><p className="status-panel-label">Kit status</p><div className="status-identity"><Avatar name={selected.name} large/><div><h2>{selected.name}</h2><p>{selected.role}</p></div></div><div className="kit-meta"><div><small>Prepared</small><strong>{kit?.preparedAt??"Today"}</strong></div><div><small>Review status</small><strong>{reviewed?"Reviewed":"Pending review"}</strong></div></div><div className="kit-completeness"><span><strong>Completeness</strong><b>100%</b></span><i><em/></i></div><IntelBlock title="Sections checklist"><div className="kit-checklist">{groups.map(group=><p key={group.title}><CheckCircle2/>{group.title}</p>)}</div></IntelBlock><IntelBlock title="Recruiter notes"><div className="kit-notes-placeholder">Add recruiter notes after reviewing the kit.</div></IntelBlock><Note>Verify every question before screening.</Note></div><div className="status-panel-footer"><Button quiet disabled><FileText/> Download PDF</Button></div></aside>
+  </div>
 }
 
 function DraftQueue({drafts,candidates,selected,onSelect}:{drafts:Draft[];candidates:Candidate[];selected:number|null;onSelect:(index:number)=>void}) {
@@ -742,8 +745,10 @@ function DraftsView({
     ? "RAG-ready placeholder — company documents are not connected in this demo workspace."
     : "Policy-grounded template generated without connected company documents in this demo workspace.";
 
+  if(drafts.length===0) return <WorkspaceEmpty icon={Send} title="No reply drafts yet" body="Reviewed draft options will appear here."/>;
+
   if(!draft){
-    return <div className="draft-view">
+    return <div className="draft-view reply-draft-grid">
       <aside className="draft-list panel">
         <ListHeading icon={Send} title="Reply drafts" sub={`${drafts.filter(item=>item.reviewStatus!=="reviewed").length} awaiting review`}/>
         <DraftQueue drafts={drafts} candidates={candidates} selected={selected} onSelect={index=>{setEditing(false);onSelect(index)}}/>
@@ -768,9 +773,10 @@ function DraftsView({
           <Button secondary disabled>Edit manually</Button>
           <Button onClick={()=>setShowRegenerate(true)}><RefreshCcw/> Regenerate options</Button>
           <Button quiet disabled onClick={onReviewed}>Mark reviewed</Button>
-          <button className="text-action" disabled>Keep as draft</button>
+          <Button quiet disabled>Keep as draft</Button>
         </div>
       </section>
+      <DraftReviewPanel candidate={null} draft={null} variant={null} reviewed={false}/>
       {showRegenerate&&<RegenerateModal
         busy={regenerating}
         error={regenerateError}
@@ -787,7 +793,8 @@ function DraftsView({
 
   const selectedVariant=draft.variants[variant] ?? draft.variants[0];
   const currentVariantIndex=Math.min(variant,draft.variants.length-1);
-  return <div className="draft-view">
+  const selectedCandidate=candidates.find(candidate=>candidate.id===draft.candidateId)??candidates[0];
+  return <div className="draft-view reply-draft-grid">
     <aside className="draft-list panel">
       <ListHeading icon={Send} title="Reply drafts" sub={`${drafts.filter(item=>item.reviewStatus!=="reviewed").length} awaiting review`}/>
       <DraftQueue drafts={drafts} candidates={candidates} selected={selected} onSelect={index=>{setEditing(false);onSelect(index)}}/>
@@ -797,8 +804,9 @@ function DraftsView({
         <div>
           <Status tone={reviewed?"green":"amber"}>{reviewed?"Reviewed":"Draft only"}</Status>
           <h2>{draft.title}</h2>
-          <p>Human review required before anything is used.</p>
+          <p>{selectedCandidate?.name} · {selectedCandidate?.role} · {draft.type}</p>
         </div>
+        <div className="draft-review-notice"><ShieldCheck/><span>Human review required before use</span></div>
       </div>
       <div className="variant-picker">
         {draft.variants.map((item,index)=><button className={clsx(index===currentVariantIndex&&"active")} key={item.name} onClick={()=>{setEditing(false);onVariant(index)}}>{index===currentVariantIndex&&<Check className="variant-check"/>}<span className="variant-preview-lines"><i/><i/><i/></span><strong>{item.name}</strong><small>{item.description}</small></button>)}
@@ -814,7 +822,7 @@ function DraftsView({
         <Button secondary onClick={()=>setEditing(value=>!value)}>{editing?"Done editing":"Edit manually"}</Button>
         <Button onClick={()=>setShowRegenerate(true)}><RefreshCcw/> Regenerate options</Button>
         <Button quiet onClick={onReviewed}><CheckCircle2/> {reviewed?"Reviewed":"Mark reviewed"}</Button>
-        <button className="text-action" onClick={onKeep}>Keep as draft</button>
+        <Button quiet onClick={onKeep}>Keep as draft</Button>
       </div>
       {showRegenerate&&<RegenerateModal
         busy={regenerating}
@@ -828,7 +836,12 @@ function DraftsView({
         hasDraft={true}
       />}
     </section>
+    <DraftReviewPanel candidate={selectedCandidate} draft={draft} variant={selectedVariant} reviewed={reviewed}/>
   </div>
+}
+
+function DraftReviewPanel({candidate,draft,variant,reviewed}:{candidate:Candidate|null|undefined;draft:Draft|null;variant:DraftVariant|null;reviewed:boolean}){
+  return <aside className="draft-review-panel panel"><div className="status-panel-scroll"><p className="status-panel-label">Draft review</p>{candidate?<><div className="status-identity"><Avatar name={candidate.name} large/><div><h2>{candidate.name}</h2><p>{candidate.role}</p></div></div><div className="review-facts"><div><small>Selected variant</small><strong>{variant?.name??"Short Professional"}</strong></div><div><small>Draft status</small><Status tone={reviewed?"green":"amber"}>{reviewed?"Reviewed":"Draft only"}</Status></div><div><small>Review status</small><strong>{reviewed?"Recruiter reviewed":"Human review required"}</strong></div><div><small>RAG / source status</small><strong>{variant?.policy?"RAG-ready · not connected":"No policy sources used"}</strong></div></div><IntelBlock title="Draft context"><p>{draft?.type} for {candidate.source.toLowerCase()} workflow.</p></IntelBlock><IntelBlock title="Preview"><p className="draft-review-preview">{variant?.body.slice(0,180)}{(variant?.body.length??0)>180?"…":""}</p></IntelBlock><Note>Local draft only. Nothing is sent automatically.</Note></>:<div className="intel-empty"><Status tone="amber">Draft only</Status><h2>No draft selected</h2><p>Choose a draft from the queue to review its context and selected variant.</p></div>}</div></aside>
 }
 
 function RegenerateModal({busy,error,settings,onChange,onClose,onSubmit,selectedTitle,sourceNote,hasDraft}:{busy:boolean;error:string;settings:RegenerateSettings;onChange:(value:RegenerateSettings)=>void;onClose:()=>void;onSubmit:(event:React.FormEvent<HTMLFormElement>)=>void;selectedTitle:string;sourceNote:string;hasDraft:boolean}){
